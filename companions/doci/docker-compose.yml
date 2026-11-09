@@ -1,0 +1,75 @@
+services:
+  doci:
+    build: .
+    container_name: doci
+    restart: always
+    environment:
+      # Database (REQUIRED)
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-doci}
+      - DB_USER=${DB_USER:-doci_app}
+      - DB_PASS=${DOCI_DB_PASS:?Database password required}
+      # API Key (hash of the key for secure comparison)
+      - DOCI_API_KEY_HASH=${DOCI_API_KEY_HASH:-}
+      # AI Gateway. Empty AI_GATEWAY_URL disables AI features.
+      - AI_GATEWAY_URL=${AI_GATEWAY_URL:-}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_GATEWAY_TIMEOUT=${AI_GATEWAY_TIMEOUT:-120}
+      - AI_GATEWAY_SSL_VERIFY=${AI_GATEWAY_SSL_VERIFY:-true}
+      - AI_MODEL_HAIKU=${AI_MODEL_HAIKU:-}
+      - AI_MODEL_SONNET=${AI_MODEL_SONNET:-}
+      - AI_MODEL_OPUS=${AI_MODEL_OPUS:-}
+      # Environment flag (development|production). Production by
+      # default; dev-mode auto-auth refuses to activate outside
+      # development.
+      - DOCI_ENV=${DOCI_ENV:-production}
+      # Dev-mode auto-auth (insecure). Refuses to activate unless
+      # DOCI_ENV=development.
+      - DOCI_DEV_AUTO_AUTH=${DOCI_DEV_AUTO_AUTH:-false}
+      # Trusted reverse-proxy source IPs / CIDRs (comma-separated).
+      # Remote-User header is honoured only from these sources;
+      # everything else has it stripped. Default = "none" sentinel
+      # = explicit API-key-only mode. Empty/0.0.0.0/0 in production
+      # is a fatal startup error -- operators MUST decide deliberately.
+      - DOCI_TRUSTED_PROXIES=${DOCI_TRUSTED_PROXIES:-none}
+      # CSRF enforcement on browser-flow POST/PUT/DELETE. On by
+      # default; disable only for API-key-only deployments.
+      - DOCI_CSRF_ENABLED=${DOCI_CSRF_ENABLED:-true}
+      # Log threshold (ERROR|WARN|INFO|DEBUG). Security-relevant
+      # actions log regardless of this level.
+      - DOCI_LOG_LEVEL=${DOCI_LOG_LEVEL:-WARN}
+      - DOCI_LOG_FILE=${DOCI_LOG_FILE:-/var/log/doci/app.log}
+      # Domain for git commits
+      - DOCI_DOMAIN=${DOCI_DOMAIN:-doci.example.com}
+      # Application URLs
+      - APP_URL=${APP_URL:-https://doci.example.com}
+      - AUTH_URL=${AUTH_URL:-https://auth.example.com}
+      - EXTERNAL_SCRIPTS_URL=${EXTERNAL_SCRIPTS_URL:-}
+      # Timezone
+      - TZ=${TZ:-UTC}
+    volumes:
+      - ./files:/var/www/html/files
+      - ./.git:/var/www/html/.git:ro
+      - doci-logs:/var/log/doci
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.doci.rule=Host(`${DOCI_DOMAIN:-doci.example.com}`)"
+      - "traefik.http.routers.doci.entrypoints=https"
+      - "traefik.http.routers.doci.tls=true"
+      - "traefik.http.services.doci.loadbalancer.server.port=80"
+    networks:
+      - web
+
+networks:
+  # External network shared with your reverse proxy (Traefik,
+  # nginx-proxy, Caddy, …). Create it once on the host:
+  #
+  #   docker network create web
+  #
+  # Rename to whatever your existing proxy network is called.
+  web:
+    external: true
+
+volumes:
+  doci-logs:

@@ -1,0 +1,17 @@
+[Unit]
+Description=Run the Smart Node daily event digest at 09:00 host local time
+
+[Timer]
+# One e-mail per day at 09:00 in the host's zone, the zone the digest also
+# reads for "yesterday local". Set the zone on the host (timedatectl
+# set-timezone), not here.
+OnCalendar=*-*-* 09:00:00
+# A node that was off at 09:00 still runs the job once at boot rather than
+# skipping the day.
+Persistent=true
+# Spread load across a cluster of nodes if a future deploy fans out; a 15 min
+# jitter is invisible to the daily cadence.
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

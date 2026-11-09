@@ -1,0 +1,15 @@
+{
+  "name": "smart-node-studio",
+  "version": "0.0.1",
+  "description": "Smart Node Studio -- unified end-user client. Studio shell (vanilla, on smart-node-ui kit). Phase 0: empty authenticated shell behind Authum.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.mjs test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "ws": "^8.18.0"
+  }
+}

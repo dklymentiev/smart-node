@@ -1,0 +1,7 @@
+# Build context for Dockerfile.mcp only (BuildKit reads <dockerfile>.dockerignore
+# in preference to .dockerignore). The main image excludes mcp_server.py on
+# purpose -- it is not part of the API service -- but this image IS that server,
+# so it must not be excluded here. Everything else stays out: this image needs
+# one file.
+*
+!mcp_server.py

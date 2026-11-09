@@ -1,0 +1,79 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        php-version: ['8.2', '8.3']
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: doci
+          POSTGRES_USER: doci_app
+          POSTGRES_PASSWORD: doci_ci_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U doci_app -d doci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: doci
+      DB_USER: doci_app
+      DB_PASS: doci_ci_pass
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: pdo, pdo_pgsql, json
+          coverage: xdebug
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Apply migrations
+        run: |
+          for f in migrations/*.sql; do
+            PGPASSWORD=$DB_PASS psql -h $DB_HOST -U $DB_USER -d $DB_NAME -f "$f"
+          done
+
+      - name: Run PHPUnit tests
+        run: composer test
+
+      - name: Run PHPStan
+        run: composer analyse
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Check PHP syntax
+        run: |
+          find . -name "*.php" -not -path "./vendor/*" | xargs -n1 php -l

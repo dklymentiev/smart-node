@@ -1,0 +1,465 @@
+#!/usr/bin/env python3
+"""sn-version -- the Smart Node composition version and change signal.
+
+TWO NUMBERS, TWO QUESTIONS. They answer different questions, so they are
+named apart here and everywhere they are printed:
+
+  * the CANON RELEASE (/etc/smart-node/release) -- which release built this node.
+    Written once at install from the installer's own RELEASE file and never moved
+    afterwards. This is the one that answers "what is installed on that machine"
+    and "am I behind the latest published release". It is NOT computed here; this
+    tool reads and reports it.
+  * the NODE COUNTER (the lock's node_version) -- how many times THIS node's
+    composition has changed since it was installed. A fresh node is 1.0.0 because
+    it has changed zero times, and that is correct rather than a defect. It is not
+    comparable between nodes and it is not the node's identity: two nodes built
+    from the same release both say 1.0.0 while running different things, and a
+    much-updated node says 1.4.0 without that meaning anything to anyone else.
+
+One node is many components (git working copies, vendored trees, docker images).
+This reads what ACTUALLY RUNS on the node, builds a manifest, and hashes it into a
+fingerprint. The change signal falls out of that: if the fingerprint moved, the
+composition changed, and on a bump we emit node.composition.changed into
+sn_core.events (the shared ledger) so any agent can ask "did the system
+change since X?".
+
+SoT for the machine-readable state = /var/lib/smart-node/node-release.lock.
+Human view + the versioning policy live in the repo-map doc (system/architecture).
+
+Subcommands:
+  show            print the live composition + fingerprint (no write)
+  check           compare live vs the lock; report drift + dirty; exit 1 if drifted
+  record [--major|--minor|--patch]  what an installer calls: pin the first
+                  composition, or record a change to it. Use this unless you
+                  know you want one of the two halves below.
+  init [X.Y.Z] [--force]  write the FIRST lock at X.Y.Z (default 1.0.0).
+                  Refuses to overwrite an existing lock: doing so resets the
+                  release number and destroys the history of what changed.
+  bump [--major|--minor|--patch]  if the composition changed, bump + rewrite lock + emit
+"""
+import json
+import os
+import subprocess
+import sys
+import hashlib
+import http.client
+import socket
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+LOCK = Path("/var/lib/smart-node/node-release.lock")
+# Written by orchestrator/install-on.sh at install time from the installer's own
+# RELEASE file. Until now NOTHING read it back -- a grep over the whole repository
+# found one hit, the line that writes it -- so the number was on the node and
+# invisible, and the install output read as a contradiction ("built from canon
+# release 1.10.6" and then "node release 1.0.0" six lines later).
+RELEASE_FILE = Path("/etc/smart-node/release")
+DEFAULT_VERSION = "1.0.0"
+UNKNOWN = "?"          # a version this reader could not determine
+NOT_INSTALLED = "not installed"   # the component is genuinely absent, not unreadable
+# The composition event goes to core-api over its unix socket. This tool runs
+# as root and has no account to name: on the socket the kernel names the caller
+# and core-api admits the node's own root account as the owner. A name typed in
+# a header over TCP proves nothing and is refused.
+CORE_SOCKET = os.environ.get("SN_CORE_API_SOCKET", "/run/smart-node/api/core-api.sock")
+CORE_API = "http://core-api"
+
+
+class _SocketConnection(http.client.HTTPConnection):
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(CORE_SOCKET)
+
+
+class _SocketHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_SocketConnection, req)
+
+
+urllib.request.install_opener(urllib.request.build_opener(_SocketHandler))
+
+# component -> (reader, locator). reader: git=working-copy describe, image=running
+# container's image tag, file=a VERSION file. This lists what RUNS on the node;
+# a hybrid (planner/voice run from an image) is read from the image, not the source.
+COMPONENTS = [
+    ("gateway",       "git",   "/opt/smart-node/gateway"),
+    ("brin",          "git",   "/opt/smart-node/dispatcher"),
+    ("communication", "git",   "/opt/smart-node/communication"),
+    ("flows",         "git",   "/opt/smart-node/flows"),
+    ("studio",        "git",   "/opt/smart-node/studio"),
+    ("admin-runner",  "git",   "/opt/smart-node/admin-runner"),
+    ("tools",         "git",   "/srv/tools"),
+    ("core-api",      "file",  "/opt/smart-node/core-api/VERSION"),
+    ("planner",       "image", "smart-node-planner"),
+    ("voice",         "image", "smart-node-voice"),
+    ("panel",         "image", "smart-node-panel"),
+    ("doci",          "git",   "/opt/smart-node/documents/app"),
+    ("doci-mcp",      "git",   "/opt/smart-node/documents/app"),
+    ("auth",          "image", "smart-node-authum"),
+    ("mail",          "image", "smart-node-mail"),
+    ("traefik",       "image", "smart-node-traefik"),
+]
+# Not auto-read yet (native installer / package): recorded manually in the lock's
+# "manual" block so the fingerprint stays reproducible without guessing.
+MANUAL = {"rein": "3.3.3", "postgres": "16"}
+
+
+def _run(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=15).stdout.strip()
+    except Exception:
+        return ""
+
+
+def _run2(cmd):
+    """Same, but the caller gets the exit status. Needed to tell "this component
+    is not on the node" from "I could not read its version" -- both used to come
+    back as an empty string, and both were reported as '?'."""
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+        return p.returncode, p.stdout.strip()
+    except Exception:
+        return 1, ""
+
+
+def read_release():
+    """The canon release stamped onto the node at install time.
+
+    Returns the parsed key=value block, or None when the file is absent -- which
+    is the truthful answer for a node built before the stamp existed, or one that
+    was hand-patched rather than installed (reference-node today). Callers must say
+    "unknown" in that case and never fall back to the node counter, which is the
+    substitution this whole task exists to stop.
+    """
+    try:
+        kv = {}
+        for line in RELEASE_FILE.read_text().splitlines():
+            if "=" in line:
+                k, v = line.split("=", 1)
+                kv[k.strip()] = v.strip()
+        return kv or None
+    except Exception:
+        return None
+
+
+def print_release(indent="  "):
+    r = read_release()
+    if not r:
+        print(f"{indent}canon release: unknown")
+        print(f"{indent}               {RELEASE_FILE} is absent -- this node was not "
+              f"built by an installer that stamps it")
+        return
+    detail = ", ".join(x for x in (
+        f"commit {r['commit']}" if r.get("commit") else "",
+        f"installed {r['installed_at'][:10]}" if r.get("installed_at") else "",
+    ) if x)
+    print(f"{indent}canon release: {r.get('release', UNKNOWN)}"
+          + (f"  ({detail})" if detail else ""))
+
+
+def read_ver(reader, loc):
+    if reader == "git":
+        v = _run(["git", "-C", loc, "describe", "--tags", "--dirty", "--always"])
+        if v:
+            return v
+        # No git here means the component was laid down as a VENDORED snapshot,
+        # which is how EVERY node cloned from a golden image gets it (only the dev
+        # node keeps real working copies). Reporting "?" there left 7 of 16
+        # components unversioned on a customer node, i.e. the version tool was
+        # blind exactly where it matters most.
+        #
+        # Prefer the commit hash written by the installer (.sn-commit). A VERSION
+        # file does not change between builds on the same semver line, so
+        # reinstalling from a newer commit that has not yet been tagged looks
+        # UNCHANGED through a VERSION file. The commit hash cannot lie.
+        try:
+            c = Path(loc, ".sn-commit").read_text().strip()
+            if c:
+                return c
+        except Exception:
+            pass
+        # Final fallback: the snapshot's own VERSION file.
+        try:
+            return Path(loc, "VERSION").read_text().strip() or "?"
+        except Exception:
+            return "?"
+    if reader == "image":
+        # Use the image content digest (sha256:<hex>) instead of the image tag.
+        # A tag can be force-pushed; the digest reflects actual image content.
+        # Reinstalling the same tag from a newer build is therefore detected.
+        # docker inspect {{.Image}} on a running container gives the full image ID.
+        rc, digest = _run2(["docker", "inspect", "--format", "{{.Image}}", loc])
+        if rc == 0 and digest:
+            return digest
+        # docker answered and has no such container. That is "this component is
+        # not on this node" -- mail, on every node installed without the mail
+        # companion -- which is a different statement from "unreadable", and
+        # reporting both as "?" made an absent component look like a broken
+        # reader. Only when docker itself cannot be reached is "?" the truth.
+        dock_rc, _ = _run2(["docker", "version", "--format", "{{.Server.Version}}"])
+        return NOT_INSTALLED if dock_rc == 0 else UNKNOWN
+    if reader == "file":
+        try:
+            return Path(loc).read_text().strip() or "?"
+        except Exception:
+            return "?"
+    return "?"
+
+
+def live_manifest():
+    m = {name: read_ver(r, l) for name, r, l in COMPONENTS}
+    m.update(MANUAL)
+    return dict(sorted(m.items()))
+
+
+def fingerprint(manifest):
+    blob = "\n".join(f"{k}={v}" for k, v in sorted(manifest.items()))
+    return hashlib.sha256(blob.encode()).hexdigest()[:12]
+
+
+def dirty(manifest):
+    return sorted(k for k, v in manifest.items() if v.endswith("-dirty"))
+
+
+def load_lock():
+    if LOCK.exists():
+        return json.loads(LOCK.read_text())
+    return None
+
+
+def diff(old, new):
+    real, resolved = split_changes(old, new)
+    return real + resolved
+
+
+def split_changes(old, new):
+    """Separate what the NODE did from what the READER learned.
+
+    "?" in a lock does not mean the component had no version. It means the
+    sn-version that wrote that lock could not read one. When a newer reader can,
+    the recorded value changes while the composition does not, and treating that
+    as a release change writes a fabricated entry into the history and moves a
+    number that tags and events now key off. Observed on an untouched node: a
+    reader upgrade alone produced "brin ? -> 1.6.0", "gateway ? -> 2.5.1",
+    "studio ? -> 0.5.0".
+    """
+    real, resolved = [], []
+    for k in sorted(set(old) | set(new)):
+        a, b = old.get(k), new.get(k)
+        if a == b:
+            continue
+        line = f"{k}: {a or '(none)'} -> {b or '(removed)'}"
+        if a == UNKNOWN and b not in (None, UNKNOWN):
+            # Reader upgrade: the previous reader recorded "?" and this one can
+            # read the actual value. The node did not change; the reader improved.
+            resolved.append(line)
+        elif (a or "").startswith("sha256:") is False and (b or "").startswith("sha256:"):
+            # Image reader upgrade: lock holds a tag string, live value is a
+            # content digest (sha256:...). The reader now uses docker {{.Image}}
+            # instead of {{.Config.Image}}. Treat as reader-resolved, not a
+            # composition change. Run `sn-version record` to rebaseline the lock.
+            resolved.append(line)
+        else:
+            real.append(line)
+    return real, resolved
+
+
+def bump_semver(v, part):
+    x, y, z = (list(map(int, v.split("."))) + [0, 0, 0])[:3]
+    if part == "major":
+        x, y, z = x + 1, 0, 0
+    elif part == "minor":
+        y, z = y + 1, 0
+    else:
+        z += 1
+    return f"{x}.{y}.{z}"
+
+
+def emit(node_version, fp, changes):
+    payload = {
+        "actor": "component:sn-version",
+        "event_type": "node.composition.changed",
+        "entity_type": "node",
+        "entity_id": "composition",
+        "payload": {"node_version": node_version, "fingerprint": fp, "changes": changes},
+    }
+    try:
+        req = urllib.request.Request(
+            CORE_API + "/api/events", data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"}, method="POST")
+        urllib.request.urlopen(req, timeout=8)
+        return True
+    except Exception as e:
+        print(f"  (event emit failed: {e})", file=sys.stderr)
+        return False
+
+
+def now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def cmd_show():
+    print_release()
+    print()
+    m = live_manifest()
+    for k, v in m.items():
+        print(f"  {k:16} {v}")
+    print(f"\n  fingerprint: {fingerprint(m)}")
+    d = dirty(m)
+    if d:
+        print(f"  DIRTY (uncommitted): {', '.join(d)}")
+    unknown = sorted(k for k, v in m.items() if v == UNKNOWN)
+    if unknown:
+        print(f"  no version of their own: {', '.join(unknown)}")
+        print("  (vendored trees with neither git nor a VERSION file --)")
+
+
+def cmd_check():
+    lock = load_lock()
+    m = live_manifest()
+    fp = fingerprint(m)
+    print_release()
+    if not lock:
+        print("no lock yet -- run: sn-version init"); return 1
+    # Named "local changes", not "node release": it counts what happened to THIS
+    # node since it was installed and says nothing about which release built it.
+    # The line above answers that.
+    print(f"  local changes: {lock['node_version']}  (this node's own counter, "
+          f"lock fp {lock['fingerprint']})")
+    if fp == lock["fingerprint"]:
+        print("  composition: UNCHANGED (matches the release)")
+        real, resolved = [], []
+    else:
+        # Same split bump() makes, for the same reason: a value this reader can
+        # read and the one that wrote the lock could not is NOT the node changing.
+        # check used to lump them together and answer CHANGED, so every reader
+        # upgrade made every node in the fleet look modified -- and exit 1, which
+        # is what an update script keys off. Observed the moment `mail` started
+        # reporting "not installed" instead of "?".
+        real, resolved = split_changes(lock["components"], m)
+        if real:
+            print("  composition: CHANGED since the release:")
+            for c in real:
+                print(f"    - {c}")
+        else:
+            print("  composition: UNCHANGED (matches the release)")
+    if resolved:
+        print(f"  reader now reads {len(resolved)} version(s) the lock could not "
+              f"-- not a change to this node:")
+        for c in resolved:
+            print(f"    . {c}")
+        print("  run `sn-version record` to re-baseline the lock without moving "
+              "the counter")
+    d = dirty(m)
+    if d:
+        print(f"  DIRTY working copies: {', '.join(d)}")
+    return 0 if not real and not d else 1
+
+
+def cmd_init(version, force=False):
+    # init writes the FIRST lock. Overwriting an existing one silently resets
+    # the release number to the default and replaces the history with a single
+    # "first pinned composition" entry, which is how a node that had been
+    # updated repeatedly still reported 1.0.0 with no record of any change.
+    # An installer re-run must not do that: it wants `record`.
+    if LOCK.exists() and not force:
+        existing = load_lock() or {}
+        print(f"lock already exists: node release {existing.get('node_version', '?')} "
+              f"(fp {existing.get('fingerprint', '?')})")
+        print("init writes the first lock only, and will not overwrite this one:")
+        print("that resets the release number and destroys the change history.")
+        print("To record a composition change, run: sn-version record")
+        return 1
+    m = live_manifest()
+    fp = fingerprint(m)
+    lock = {"node_version": version, "fingerprint": fp, "generated_at": now(),
+            "components": m,
+            "history": [{"node_version": version, "fingerprint": fp, "at": now(),
+                         "changes": ["init: first pinned composition"]}]}
+    LOCK.write_text(json.dumps(lock, indent=2) + "\n")
+    # Say which counter this is. Printed six lines under install-on's "node built
+    # from canon release X", the old wording ("initialized node release 1.0.0")
+    # read as a contradiction of it rather than as the other number.
+    rel = read_release()
+    built = f" (built from canon release {rel['release']})" if rel and rel.get("release") else ""
+    print(f"first composition pinned; local change counter starts at {version}"
+          f"  fp {fp}  ({len(m)} components){built}")
+    emit(version, fp, ["init"])
+    return 0
+
+
+def cmd_bump(part):
+    lock = load_lock()
+    if not lock:
+        print("no lock -- run: sn-version init first"); return 1
+    m = live_manifest()
+    fp = fingerprint(m)
+    if fp == lock["fingerprint"]:
+        print(f"no change (still {lock['node_version']}, fp {fp})"); return 0
+    real, resolved = split_changes(lock["components"], m)
+    if not real:
+        # Every difference is a value this reader can read and the previous one
+        # could not. Re-baseline so the next run compares like with like, but do
+        # not move the release number and do not announce a change that the node
+        # did not make.
+        lock["fingerprint"] = fp
+        lock["generated_at"] = now()
+        lock["components"] = m
+        lock.setdefault("history", []).append(
+            {"node_version": lock["node_version"], "fingerprint": fp, "at": now(),
+             "changes": [f"reader resolved {len(resolved)} previously unreadable "
+                         f"version(s); composition unchanged"] + resolved})
+        LOCK.write_text(json.dumps(lock, indent=2) + "\n")
+        print(f"no composition change (still {lock['node_version']}, fp {fp})")
+        for c in resolved:
+            print(f"    . {c}   (reader, not the node)")
+        return 0
+    changes = real + resolved
+    newv = bump_semver(lock["node_version"], part)
+    lock["node_version"] = newv
+    lock["fingerprint"] = fp
+    lock["generated_at"] = now()
+    lock["components"] = m
+    lock.setdefault("history", []).append(
+        {"node_version": newv, "fingerprint": fp, "at": now(), "changes": changes})
+    LOCK.write_text(json.dumps(lock, indent=2) + "\n")
+    print(f"bumped -> node release {newv}  fp {fp}")
+    for c in changes:
+        print(f"    - {c}")
+    emit(newv, fp, changes)
+    return 0
+
+
+def cmd_record(part):
+    # The one an installer calls. It runs at the end of a first install and of
+    # an update alike and cannot tell them apart from the outside, so the choice
+    # belongs here rather than in every caller: no lock means this is the first
+    # composition, a lock means anything new is a change to it.
+    if not LOCK.exists():
+        return cmd_init(DEFAULT_VERSION)
+    return cmd_bump(part)
+
+
+if __name__ == "__main__":
+    a = sys.argv[1:]
+    cmd = a[0] if a else "show"
+    flags = [x for x in a[1:] if x.startswith("-")]
+    words = [x for x in a[1:] if not x.startswith("-")]
+    part = "patch"
+    for f in flags:
+        if f in ("--major", "--minor", "--patch"):
+            part = f[2:]
+    if cmd == "show":
+        cmd_show()
+    elif cmd == "check":
+        sys.exit(cmd_check())
+    elif cmd == "init":
+        sys.exit(cmd_init(words[0] if words else DEFAULT_VERSION, "--force" in flags))
+    elif cmd == "bump":
+        sys.exit(cmd_bump(part))
+    elif cmd == "record":
+        sys.exit(cmd_record(part))
+    else:
+        print(__doc__); sys.exit(2)

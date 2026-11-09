@@ -1,0 +1,76 @@
+# Environment (NEVER commit real credentials)
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# Database backups
+backups/
+*.sql
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Databases
+*.sqlite
+*.db
+
+# Linting / type checking
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backups
+*.bak
+
+# Internal project files
+CLAUDE.md
+MEMORY.md
+
+# Additional env file patterns
+*.env
+secrets/
+secrets.json
+secrets.yaml
+secrets.yml
+
+# Node (recording scripts)
+node_modules/
+package-lock.json
+scripts/package.json
+
+# Temporary media files
+*.mp4
+*.webm
+ui/demo*
+
+# Recording artifacts
+scripts/record-demo.mjs
+.github/workflows/

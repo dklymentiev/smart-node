@@ -1,0 +1,47 @@
+# Vendored: planner (the tracking companion's app)
+
+Pinned snapshot of the node's work tracker: the six-stage task pipeline, the
+objective hierarchy, projects, and the worklog/plan references.
+`companions/tracking.sh` installs this directory as a native service
+(`smart-node-planner.service`); no image is built or loaded any more.
+
+Upstream:  private first-party repository
+Tag:       v0.4.0
+Commit:    49882c0  (a trusted key may name the caller it acts for)
+Vendored:  2026-08-13
+
+Why it is vendored at all: it was the ONE component the installer did not carry,
+so `tools/build-images.sh` required `--planner-repo /path/to/a/private/checkout`.
+Anyone without access to that repo could not build the planner image, the
+tracking companion had nothing to load, and the install died there -- i.e. the
+repo could not be handed to anyone outside the team, however open the rest of it
+was. Vendoring it matches every other component (doci, mesh, brin, gateway,
+core-api ...) and makes this repo the whole input again.
+
+Why v0.3.1 and not v0.3.0: v0.3.0 could not produce a working container. Its
+`pyproject.toml` had `httpx` only in the `dev` extra while `planner/notify.py`
+imports it at module level, so an image built the documented way (`pip install .`)
+died at import with "No module named 'httpx'" and never became healthy. The image
+that had been running on nodes was built from some other, unrecorded state, so the
+break stayed invisible until this vendoring rebuilt from the tag -- and then a
+clean install failed at the tracking companion. Fixed upstream in v0.3.1, which
+also aligns VERSION / `__version__` / tag on 0.3.1 (they had said 0.2.0 / 0.3.0 /
+v0.3.0).
+
+Why v0.4.0: the node needed a credential on the planner without losing
+who each entry belongs to. `api_keys.can_delegate` lets ONE holder -- core-api,
+the door that resolves callers -- present a credential and name the real author
+in the same request, while every other key ignores the name header entirely.
+Before this the node ran the planner in `dev` mode on a bridge address anything
+could reach, so every entry was authored `dev` and the owner's approval never
+matched what brin releases on.
+
+Re-vendoring: `git -C <planner checkout> archive v<version> | tar -x -C
+companions/planner`, then update this file and `tracking.sh` STAGE_VERSION (it
+names both the image tag and the tarball). Diff before you overwrite -- vendored
+trees on this project have drifted in BOTH directions.
+
+Do NOT use `tools/revendor.sh` for this tree as it stands: its rsync `--delete`
+removes this VENDORED file (nothing excludes it) and it copies `.pytest_cache/`
+in from a checkout that has run its tests. `git archive` from the tag carries
+tracked files only, which is why the recipe above is the one written down.

@@ -1,0 +1,17 @@
+[Unit]
+Description=AI Gateway Service
+After=network.target
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/opt/smart-node/ai-gateway
+Environment="PATH=/opt/smart-node/ai-gateway/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/smart-node/ai-gateway/venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 19850
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/ai-gateway.log
+StandardError=append:/var/log/ai-gateway.log
+
+[Install]
+WantedBy=multi-user.target

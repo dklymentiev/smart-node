@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""Which companions to install, and in what order, read from companions/*.manifest.json.
+
+  sn-components plan [NAME,NAME...]   the chosen set plus what it requires, in install order
+  sn-components choose                ask which modules to install; the screen goes to
+                                      stderr, the answer (NAME,NAME) to stdout
+  sn-components ways                  ask how the AI will work (a subscription or an API key);
+                                      the screen goes to stderr, the answer to stdout: the
+                                      runtime of the subscription, or "key"
+  sn-components for-way WAY           the modules for that answer: every module but the
+                                      subscription runtimes not chosen (NAME,NAME)
+  sn-components sidecars NAME         the files run_companion copies next to NAME's script
+  sn-components dependents NAME       installed companions that work without NAME and pick
+                                      it up when re-run (re-run them after adding NAME)
+
+Order rule: a companion goes after everything it requires AND after every chosen companion
+it works without, so an optional part that is chosen is in place before the one that uses it.
+Nothing is hard-coded here: adding a companion is adding its manifest.
+"""
+import glob, json, os, sys
+
+SRC = os.environ.get("SN_SRC", os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+STATE = os.environ.get("SMART_NODE_STATE_DIR", "/var/lib/smart-node/stages")
+
+
+def load():
+    out = {}
+    for f in sorted(glob.glob(os.path.join(SRC, "companions", "*.manifest.json"))):
+        m = json.load(open(f, encoding="utf-8"))
+        out[m["name"]] = m
+    return out
+
+
+def die(msg):
+    print(f"sn-components: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def installed(name):
+    try:
+        return "status=done" in open(os.path.join(STATE, f"{name}.state")).read().split()
+    except OSError:
+        return False
+
+
+def plan(M, chosen):
+    for c in chosen:
+        if c not in M:
+            die(f"unknown companion '{c}' (known: {', '.join(M)})")
+    want = set(chosen) | {n for n, m in M.items() if m.get("core")}
+    # An agent runtime is a choice (Claude Code, Flint, or both), not core: a node
+    # has at least one, the "default" one when nothing else was chosen.
+    if not any(M[n].get("runtime") for n in want):
+        want |= {n for n, m in M.items() if m.get("runtime") and m.get("default")}
+    todo = list(want)
+    while todo:  # close over requires
+        for r in M[todo.pop()]["requires"]:
+            if r not in M:
+                die(f"a manifest requires unknown companion '{r}'")
+            if r not in want:
+                want.add(r)
+                todo.append(r)
+    order, done, busy = [], set(), set()
+
+    def visit(n):
+        if n in done:
+            return
+        if n in busy:
+            die(f"dependency cycle through '{n}'")
+        busy.add(n)
+        after = M[n]["requires"] + [w for w in M[n].get("works_without", {}) if w in want]
+        for a in sorted(after):
+            visit(a)
+        busy.discard(n)
+        done.add(n)
+        order.append(n)
+
+    for n in sorted(want):
+        visit(n)
+    return order, want
+
+
+def choose(M):
+    """The modules of this release, from their manifests, ticked and unticked by number."""
+    say = lambda s="": print(s, file=sys.stderr)
+    # the runtimes first: one is a must, the rest are extras. Core is always installed.
+    mods = sorted((n for n, m in M.items() if not m.get("core")), key=lambda n: (not M[n].get("runtime"), M[n]["title"]))
+    on = {n for n in mods if M[n].get("runtime") and M[n].get("default")}
+    while True:
+        say("\nSmart Node: choose modules (the core is always installed)\n")
+        for i, n in enumerate(mods, 1):
+            say(f"  {i:>2}  {M[n]['title']:<16} {M[n].get('provides', ''):<60} [{'x' if n in on else ' '}]")
+        say("\nNumbers to tick or untick, Enter to install:")
+        line = sys.stdin.readline()
+        if line.strip():
+            for w in line.split():
+                if w.isdigit() and 1 <= int(w) <= len(mods):
+                    on ^= {mods[int(w) - 1]}
+            continue
+        if any(M[n].get("runtime") for n in on):
+            return [n for n in mods if n in on]
+        if not line:  # no one is answering: the default node rather than a loop
+            return [n for n in mods if M[n].get("runtime") and M[n].get("default")]
+        say("Choose at least one agent runtime: no agent can run on a node without one.")
+
+
+def ways(M):
+    """How the AI will work: one line per subscription runtime ("way" in its manifest), then a key."""
+    say = lambda s="": print(s, file=sys.stderr)
+    subs = sorted((n for n, m in M.items() if m.get("way")), key=lambda n: M[n]["way"])
+    opts = [(n, M[n]["way"]) for n in subs]
+    opts.append(("key", "API key (Anthropic, OpenAI, Google, OpenRouter or your own address)"))
+    while True:
+        say("\nSmart Node: how will your AI work?\n")
+        for i, (_, label) in enumerate(opts, 1):
+            say(f"  {i}  {label}")
+        say("\nNumber, then Enter:")
+        line = sys.stdin.readline()
+        if not line:  # no one is answering: no answer, the installer keeps its default
+            return ""
+        w = line.strip()
+        if w.isdigit() and 1 <= int(w) <= len(opts):
+            return opts[int(w) - 1][0]
+
+
+def for_way(M, way):
+    subs = {n for n, m in M.items() if m.get("way")}
+    if way != "key" and way not in subs:
+        die(f"unknown way '{way}' (known: {', '.join(sorted(subs) + ['key'])})")
+    return [n for n in sorted(M) if not M[n].get("core") and (n not in subs or n == way)]
+
+
+def main():
+    M = load()
+    if not M:
+        die(f"no manifests under {SRC}/companions")
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    arg = sys.argv[2] if len(sys.argv) > 2 else ""
+    if cmd == "plan":
+        chosen = [c for c in arg.split(",") if c]
+        order, want = plan(M, chosen)
+        core = sorted(n for n in want if M[n].get("core"))
+        extra = sorted(n for n in want - set(chosen) - set(core) if not M[n].get("runtime"))
+        print(f"chosen:   {', '.join(chosen) or '(none, the minimal node)'}")
+        print(f"core:     {', '.join(core)}")
+        print(f"runtime:  {', '.join(sorted(n for n in want if M[n].get('runtime')))}")
+        if extra:
+            print(f"required: {', '.join(extra)}")
+        print(f"order:    {' '.join(order)}")
+        for n in sorted(set(M) - want):
+            print(f"skipped:  {n} ({M[n]['provides']})")
+        for n in order:
+            for w, loss in M[n].get("works_without", {}).items():
+                if w not in want:
+                    print(f"without:  {w} -> {n}: {loss}")
+    elif cmd == "choose":
+        print(",".join(choose(M)))
+    elif cmd == "ways":
+        print(ways(M))
+    elif cmd == "for-way" and arg:
+        print(",".join(for_way(M, arg)))
+    elif cmd == "sidecars" and arg in M:
+        print(M[arg].get("sidecars", ""))
+    elif cmd == "dependents" and arg in M:
+        print(" ".join(n for n in M if arg in M[n].get("works_without", {}) and installed(n)))
+    else:
+        die("usage: sn-components plan [NAME,NAME...] | choose | ways | for-way WAY | sidecars NAME | dependents NAME")
+
+
+if __name__ == "__main__":
+    main()

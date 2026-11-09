@@ -1,0 +1,12 @@
+{
+  "name": "gateway",
+  "title": "AI gateway",
+  "provides": "the one door to the AI models",
+  "core": true,
+  "requires": [],
+  "works_without": {
+    "flint": "agents run on Claude Code only"
+  },
+  "sidecars": "gateway gateway-ops companions/core-api/lib/supervisor.py:core-api/lib/supervisor.py",
+  "icon": "waypoints"
+}

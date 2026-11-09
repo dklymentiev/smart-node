@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="mb-6 flex items-baseline justify-between">
+  <h1 class="text-2xl font-semibold tracking-tight">New task</h1>
+  <a href="/ui/tasks" class="text-sm text-slate-500 hover:text-slate-900">&larr; All tasks</a>
+</section>
+
+{% if error %}
+<div class="mb-4 rounded bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700">
+  {{ error }}
+</div>
+{% endif %}
+
+<form method="post" action="/ui/tasks/new" class="bg-white border rounded-lg p-6 space-y-4">
+
+  <div>
+    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Title <span class="text-rose-600">*</span></label>
+    <input name="title" type="text" required maxlength="512"
+           class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+  </div>
+
+  <div>
+    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Description</label>
+    <textarea name="description" rows="4"
+              class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"></textarea>
+  </div>
+
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Project</label>
+      <select name="project_id" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        <option value="">— none —</option>
+        {% for p in projects %}
+        <option value="{{ p.id }}">{{ p.title }} ({{ p.slug }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Objective</label>
+      <select name="objective_id" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        <option value="">— none —</option>
+        {% for o in objectives %}
+        <option value="{{ o.id }}">[{{ o.type }}] {{ o.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Assignee</label>
+      <select name="assignee" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        <option value="">— unassigned —</option>
+        {% for a in actors %}
+        <option value="{{ a.id }}">{{ a.display_name }} ({{ a.id }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Requester</label>
+      <select name="requester" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        <option value="">— none —</option>
+        {% for a in actors %}
+        <option value="{{ a.id }}" {% if a.id == actor_id %}selected{% endif %}>{{ a.display_name }} ({{ a.id }})</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-3 gap-4">
+    <div>
+      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Priority</label>
+      <select name="priority" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        {% for p in all_priorities %}
+        <option value="{{ p }}" {% if p == 'medium' %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Complexity</label>
+      <select name="complexity_hint" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+        <option value="">—</option>
+        {% for c in all_complexities %}
+        <option value="{{ c }}">{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Due date</label>
+      <input name="due_date" type="date" class="w-full rounded border border-slate-300 px-3 py-2 text-sm">
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Scope</label>
+      <input name="scope" type="text" class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+             placeholder="What is in and what is out">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">ETA</label>
+      <input name="eta" type="text" class="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+             placeholder="2 days / 1-2 weeks / same day">
+    </div>
+  </div>
+
+  <div class="flex items-center gap-3 pt-2">
+    <button type="submit" class="px-4 py-2 bg-slate-900 text-white text-sm rounded hover:bg-slate-700">
+      Create task
+    </button>
+    <a href="/ui/tasks" class="text-sm text-slate-500 hover:text-slate-900">Cancel</a>
+  </div>
+</form>
+
+<p class="mt-4 text-xs text-slate-400">
+  Status starts as <code>open</code>. Use the transition buttons on the task page to move it through the pipeline.
+</p>
+{% endblock %}

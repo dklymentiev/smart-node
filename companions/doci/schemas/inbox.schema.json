@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dklymentiev/doci/schemas/inbox.schema.json",
+  "title": "DOCI Inbox — Add Request",
+  "description": "Request body for POST /api/inbox.php?action=add. Free-form quick capture. The first non-empty line becomes the title (truncated to 80 chars). Files land at files/inbox/YYYYMMDD-HHMMSS.md with doc_type='inbox'. Use ?action=promote with {guid, target} to convert into a structured document.",
+  "type": "object",
+  "required": ["content"],
+  "additionalProperties": false,
+  "properties": {
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Free-form text. Markdown is rendered if the body contains markdown; plain text is fine. The first non-empty line is extracted as the title."
+    },
+    "tags": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Comma-separated tag list; will be split and per-tag-validated against `^[a-zA-Z0-9_-]{1,50}$`."
+        },
+        {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,50}$" },
+          "uniqueItems": true
+        }
+      ]
+    },
+    "source": {
+      "type": "string",
+      "description": "Optional caller identifier for analytics. Stored in created_by if no Remote-User is set."
+    }
+  }
+}

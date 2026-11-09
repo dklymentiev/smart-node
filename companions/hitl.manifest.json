@@ -1,0 +1,9 @@
+{
+  "name": "hitl",
+  "title": "Approvals",
+  "provides": "asks a person before an agent acts outside",
+  "requires": [],
+  "works_without": {},
+  "sidecars": "hitl-upstream hitl _shared",
+  "icon": "shield-check"
+}

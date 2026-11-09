@@ -1,0 +1,11 @@
+[Unit]
+Description=Smart Node daily event digest -- summarise sn_core.events for the previous local day and e-mail the owner
+After=network.target postgresql.service
+
+[Service]
+# The root oneshot composes the digest and queues it for the owner through the
+# local core-api Unix socket (POST /api/owner-alert): the node's sender, the
+# owner's email channel from Settings. No person, mailbox or zone is set here;
+# "local" is the host zone, the same one the timer fires in.
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/smart-node/ops/event-digest.py

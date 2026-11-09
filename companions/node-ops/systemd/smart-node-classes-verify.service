@@ -1,0 +1,14 @@
+[Unit]
+Description=Smart Node class verify -- does the node still match /etc/smart-node/classes.json
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/smart-node/ops/classes-verify.py
+# Findings are exit 1 and the run is meant to be READ, not to page anyone: a
+# declaration that has drifted is a documentation defect, not an outage. The
+# unit is allowed to end non-zero so `systemctl status` and the journal both
+# carry it, which is where an operator looks after validate.sh names it.
+SuccessExitStatus=0 1
+StandardOutput=journal
+StandardError=journal

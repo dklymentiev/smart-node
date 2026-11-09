@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+.env
+*.log
+.DS_Store
+*.swp
+*~
+
+# secrets / backups / logs (never commit)
+.env.bak*
+*.bak
+logs/

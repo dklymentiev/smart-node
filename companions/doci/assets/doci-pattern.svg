@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" preserveAspectRatio="xMidYMin slice" role="presentation">
+  <rect width="800" height="450" fill="#0f172a"/>
+
+  <g opacity="0.06">
+    <g transform="translate(20,20) rotate(-12)">
+      <rect width="130" height="160" rx="5" fill="#64748b" stroke="#94a3b8" stroke-width="1"/>
+      <line x1="16" y1="26"  x2="90"  y2="26"  stroke="#cbd5e1" stroke-width="2.5"/>
+      <line x1="16" y1="42"  x2="105" y2="42"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="16" y1="58"  x2="80"  y2="58"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="16" y1="74"  x2="95"  y2="74"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="16" y1="90"  x2="85"  y2="90"  stroke="#94a3b8" stroke-width="2"/>
+    </g>
+    <g transform="translate(610,10) rotate(10)">
+      <rect width="145" height="175" rx="5" fill="#64748b" stroke="#94a3b8" stroke-width="1"/>
+      <line x1="18" y1="28"  x2="100" y2="28"  stroke="#cbd5e1" stroke-width="2.5"/>
+      <line x1="18" y1="46"  x2="118" y2="46"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="18" y1="64"  x2="90"  y2="64"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="18" y1="82"  x2="110" y2="82"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="18" y1="100" x2="80"  y2="100" stroke="#94a3b8" stroke-width="2"/>
+      <line x1="18" y1="118" x2="100" y2="118" stroke="#94a3b8" stroke-width="2"/>
+    </g>
+    <g transform="translate(0,250) rotate(7)">
+      <rect width="135" height="170" rx="5" fill="#64748b" stroke="#94a3b8" stroke-width="1"/>
+      <line x1="18" y1="28"  x2="90"  y2="28"  stroke="#cbd5e1" stroke-width="2.5"/>
+      <line x1="18" y1="46"  x2="108" y2="46"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="18" y1="64"  x2="85"  y2="64"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="18" y1="82"  x2="100" y2="82"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="18" y1="100" x2="95"  y2="100" stroke="#94a3b8" stroke-width="2"/>
+    </g>
+    <g transform="translate(640,270) rotate(-12)">
+      <rect width="125" height="160" rx="5" fill="#64748b" stroke="#94a3b8" stroke-width="1"/>
+      <line x1="16" y1="26"  x2="85"  y2="26"  stroke="#cbd5e1" stroke-width="2.5"/>
+      <line x1="16" y1="44"  x2="100" y2="44"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="16" y1="62"  x2="78"  y2="62"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="16" y1="80"  x2="95"  y2="80"  stroke="#94a3b8" stroke-width="2"/>
+      <line x1="16" y1="98"  x2="82"  y2="98"  stroke="#94a3b8" stroke-width="2"/>
+    </g>
+  </g>
+  <g opacity="0.04">
+    <g transform="translate(160,160) rotate(-6)">
+      <rect width="115" height="145" rx="4" fill="#64748b" stroke="#94a3b8" stroke-width="1"/>
+      <line x1="14" y1="22" x2="80" y2="22" stroke="#cbd5e1" stroke-width="2"/>
+      <line x1="14" y1="38" x2="92" y2="38" stroke="#94a3b8" stroke-width="2"/>
+      <line x1="14" y1="54" x2="75" y2="54" stroke="#94a3b8" stroke-width="2"/>
+    </g>
+    <g transform="translate(555,140) rotate(16)">
+      <rect width="105" height="135" rx="4" fill="#64748b" stroke="#94a3b8" stroke-width="1"/>
+      <line x1="14" y1="22" x2="75" y2="22" stroke="#cbd5e1" stroke-width="2"/>
+      <line x1="14" y1="38" x2="85" y2="38" stroke="#94a3b8" stroke-width="2"/>
+      <line x1="14" y1="54" x2="70" y2="54" stroke="#94a3b8" stroke-width="2"/>
+    </g>
+  </g>
+  <g opacity="0.05">
+    <g transform="translate(340,330) rotate(-8)">
+      <rect width="125" height="155" rx="4" fill="#64748b" stroke="#94a3b8" stroke-width="1"/>
+      <line x1="16" y1="26" x2="85"  y2="26" stroke="#cbd5e1" stroke-width="2"/>
+      <line x1="16" y1="44" x2="100" y2="44" stroke="#94a3b8" stroke-width="2"/>
+      <line x1="16" y1="62" x2="80"  y2="62" stroke="#94a3b8" stroke-width="2"/>
+    </g>
+    <g transform="translate(340,-30) rotate(5)">
+      <rect width="110" height="140" rx="4" fill="#64748b" stroke="#94a3b8" stroke-width="1"/>
+      <line x1="14" y1="22" x2="78" y2="22" stroke="#cbd5e1" stroke-width="2"/>
+      <line x1="14" y1="38" x2="90" y2="38" stroke="#94a3b8" stroke-width="2"/>
+    </g>
+  </g>
+
+  <!-- Smooth fade-to-solid at the bottom so content sits on flat slate. -->
+  <defs>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#0f172a" stop-opacity="0"/>
+      <stop offset="30%"  stop-color="#0f172a" stop-opacity="0"/>
+      <stop offset="55%"  stop-color="#0f172a" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#fade)"/>
+</svg>

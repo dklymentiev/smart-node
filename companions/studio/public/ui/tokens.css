@@ -1,0 +1,78 @@
+/* =====================================================================
+   Smart Node — Interface Tokens  v0.1
+   Single source of truth for every Smart Node service UI
+   (core, mesh, doci, planner). Light is default; add data-theme="dark"
+   on <html> for the dark surface. Brandbook: ../app-themes.html
+   All tokens are prefixed --sn-* to coexist with a service's own CSS.
+   ===================================================================== */
+
+/* Layer order — declared once, here. Services put their CSS in `app`. */
+@layer tokens, base, components, app;
+
+@layer tokens {
+
+  /* ---- shared: never change with theme ---- */
+  :root{
+    --sn-font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --sn-mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',monospace;
+
+    /* radius scale (by element size) */
+    --sn-r-xs:6px;   /* dots, tiny chips      */
+    --sn-r-sm:8px;   /* icon buttons, small   */
+    --sn-r-md:11px;  /* buttons               */
+    --sn-r-lg:14px;  /* cards, fields, nodes  */
+    --sn-r-xl:18px;  /* panels                */
+    --sn-r-pill:999px;
+
+    /* spacing — 8px base */
+    --sn-sp-1:4px; --sn-sp-2:8px; --sn-sp-3:12px; --sn-sp-4:16px;
+    --sn-sp-5:20px; --sn-sp-6:24px; --sn-sp-8:32px; --sn-sp-10:40px;
+
+    /* layout */
+    --sn-topbar-h:56px; --sn-sidebar-w:248px; --sn-panel-w:350px;
+    --sn-content-max:1080px; --sn-content-max-wide:1280px;
+
+    /* motion */
+    --sn-t-fast:.15s; --sn-t-mid:.35s; --sn-t-amb:1.6s;
+    --sn-ease-out:cubic-bezier(.22,1,.36,1);
+    --sn-ease-pop:cubic-bezier(.2,.9,.3,1.1);
+
+    /* z-index */
+    --sn-z-nav:50; --sn-z-overlay:80; --sn-z-toast:100;
+  }
+
+  /* ---- LIGHT (default): beige paper, flat ---- */
+  :root, [data-theme="light"]{
+    --sn-bg:#fafaf8; --sn-bg-2:#f4f3ef; --sn-surface:#ffffff; --sn-surface-2:#faf9f6; --sn-inset:#f1f0ec;
+    --sn-ink:#0a0a0a; --sn-ink-2:#1c1c1e; --sn-ink-mute:#76767a; --sn-ink-faint:#b3b2ad;
+    --sn-rule:#e7e6e1; --sn-rule-2:#f0efea;
+    --sn-bubble-agent:#ffffff; --sn-bubble-user:#efece4;
+    --sn-send:#101114; --sn-on-send:#fafaf8;
+    --sn-work:#6f7e90; --sn-idle:#8aa58f; --sn-on:#4f8a5b;  /* on: a rule or a switch that holds */
+    --sn-danger:#b4433a;  /* destructive actions only: Delete */
+    --sn-dot:rgba(10,10,10,.09); --sn-link:rgba(10,10,10,.16);
+    /* the only color: muted brushed-metal, used on thin borders + faint glow */
+    --sn-edge:linear-gradient(135deg,rgba(108,124,150,.60),rgba(170,166,158,.12) 48%,rgba(176,148,116,.55));
+    --sn-edge-soft:linear-gradient(135deg,rgba(108,124,150,.30),rgba(170,166,158,.05) 50%,rgba(176,148,116,.26));
+    --sn-glow-cool:rgba(90,120,160,.06); --sn-glow-warm:rgba(190,160,120,.06);
+    --sn-shadow-s:0 1px 2px rgba(10,10,10,.05);
+    --sn-shadow:0 1px 2px rgba(10,10,10,.05),0 14px 34px rgba(10,10,10,.08);
+  }
+
+  /* ---- DARK: charcoal, faint glow ---- */
+  [data-theme="dark"]{
+    --sn-bg:#0a0a0c; --sn-bg-2:#0c0d10; --sn-surface:#131419; --sn-surface-2:#16171d; --sn-inset:#101116;
+    --sn-ink:#f2f2f0; --sn-ink-2:#c7c7cd; --sn-ink-mute:#83838d; --sn-ink-faint:#54545d;
+    --sn-rule:rgba(255,255,255,.075); --sn-rule-2:rgba(255,255,255,.045);
+    --sn-bubble-agent:#15161b; --sn-bubble-user:#1f2027;
+    --sn-send:#23242b; --sn-on-send:#f2f2f0;
+    --sn-work:#9aa6b8; --sn-idle:#3f5141; --sn-on:#6fbf86;
+    --sn-danger:#e0675d;
+    --sn-dot:rgba(255,255,255,.05); --sn-link:rgba(255,255,255,.14);
+    --sn-edge:linear-gradient(135deg,rgba(132,146,168,.65),rgba(86,92,104,.10) 46%,rgba(168,142,112,.50));
+    --sn-edge-soft:linear-gradient(135deg,rgba(132,146,168,.32),rgba(86,92,104,.06) 50%,rgba(168,142,112,.26));
+    --sn-glow-cool:rgba(90,110,140,.10); --sn-glow-warm:rgba(150,128,104,.07);
+    --sn-shadow-s:0 2px 8px rgba(0,0,0,.4);
+    --sn-shadow:0 20px 50px rgba(0,0,0,.5);
+  }
+}

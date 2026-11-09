@@ -1,0 +1,26 @@
+[Unit]
+Description=Smart Node runtime (the agent CLI processes, reached through the gateway)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=smart-node-gateway
+Group=smart-node
+WorkingDirectory=/opt/smart-node/gateway
+ExecStart=/opt/smart-node/gateway/venv/bin/python -m uvicorn runtime_main:app --host 127.0.0.1 --port 8002
+Restart=always
+RestartSec=5
+# The runtime drops to an agent's own user through sudo (setuid), which
+# NoNewPrivileges=true would forbid. The door (smart-node-gateway.service)
+# keeps it true; this is the one process that spawns.
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=true
+ProtectHome=true
+ReadWritePaths=/var/log/smart-node/gateway
+StandardOutput=append:/var/log/smart-node/gateway/runtime.log
+StandardError=append:/var/log/smart-node/gateway/runtime.log
+
+[Install]
+WantedBy=multi-user.target

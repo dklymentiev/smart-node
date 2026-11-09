@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dklymentiev/doci/schemas/document.schema.json",
+  "title": "DOCI Document",
+  "description": "A row in the `documents` table plus its on-disk markdown body. The same shape is used by GET /api/documents.php?content=1 (full read) and as the response body of POST/PUT /api/documents.php (without `content` unless requested).",
+  "type": "object",
+  "required": ["guid", "path", "doc_type", "title"],
+  "additionalProperties": false,
+  "properties": {
+    "guid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Stable identifier. Survives path renames; the entire reason GUIDs exist."
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_\\-./]+\\.md$",
+      "minLength": 4,
+      "maxLength": 1024,
+      "description": "Filesystem path relative to `files/`. Always ends in .md; auto-appended on create if missing. Only alphanumerics, `_`, `-`, `.`, `/` (see lib/validation.php sanitize_path)."
+    },
+    "parent_guid": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "For doc_type='thread': the document the thread is attached to. Null for plain documents."
+    },
+    "original_guid": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "For doc_type='version': the live document this is a snapshot of."
+    },
+    "doc_type": {
+      "type": "string",
+      "enum": ["document", "inbox", "thread", "version"],
+      "default": "document"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "summary": {
+      "type": ["string", "null"],
+      "maxLength": 2048,
+      "description": "Optional one-line description used in folder cards and search results."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9_-]{1,50}$"
+      },
+      "uniqueItems": true,
+      "default": []
+    },
+    "quote": {
+      "type": ["string", "null"],
+      "description": "Threads only: the selected passage on the parent document that this thread anchors to."
+    },
+    "content": {
+      "type": "string",
+      "description": "The raw markdown body. Present only when ?content=1 is passed to GET."
+    },
+    "created_by": {
+      "type": ["string", "null"],
+      "description": "Identity string from the proxy's Remote-User header at create time."
+    },
+    "updated_by": {
+      "type": ["string", "null"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "access": {
+      "type": ["string", "null"],
+      "description": "Reserved for per-document ACL. Not wired in v0.1."
+    },
+    "deleted_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Soft-delete tombstone. Soft-deleted rows are excluded from default reads."
+    },
+    "url": {
+      "type": "string",
+      "description": "Convenience absolute URL returned by mutations: `${APP_URL}/${guid}`."
+    }
+  }
+}

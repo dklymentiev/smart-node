@@ -1,0 +1,10 @@
+# Runtime artefacts — never committed.
+agents/*/logs/
+agents/*/state/
+agents/*/output/
+!**/.gitkeep
+
+# Secrets — only *.example may be committed.
+*.env
+!*.env.example
+secrets/*.env

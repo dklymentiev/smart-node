@@ -1,0 +1,134 @@
+services:
+  postgres:
+    container_name: common-postgres
+    image: pgvector/pgvector:pg16@sha256:0a07c4114ba6d1d04effcce3385e9f5ce305eb02e56a3d35948a415a52f193ec
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-meshdb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - mesh_postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/10-mesh-app-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-meshdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    container_name: mesh-api
+    build: .
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks:
+      - default
+      - traefik-net
+    labels:
+      - "traefik.enable=false"
+      - "traefik.docker.network=traefik-net"
+      - "traefik.http.routers.mesh.rule=Host(`${TRAEFIK_HOST:-mesh.example.com}`)"
+      - "traefik.http.routers.mesh.entrypoints=https"
+      - "traefik.http.routers.mesh.tls=true"
+      - "traefik.http.routers.mesh.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.mesh.middlewares=mesh-vpn@file"
+      - "traefik.http.services.mesh.loadbalancer.server.port=8000"
+    environment:
+      # Superuser connection (for migrations)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-meshdb}
+      # App role connection (RLS enforced) -- falls back to DATABASE_URL if not set
+      DATABASE_URL_APP: ${DATABASE_URL_APP:-}
+      MESH_APP_PASSWORD: ${MESH_APP_PASSWORD:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-intfloat/multilingual-e5-base}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+      API_KEYS: ${API_KEYS:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      IP_WHITELIST: ${IP_WHITELIST:-}
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
+      RATE_LIMIT_SEARCH: ${RATE_LIMIT_SEARCH:-60}
+      RATE_LIMIT_EMBED: ${RATE_LIMIT_EMBED:-30}
+      RATE_LIMIT_HEAVY: ${RATE_LIMIT_HEAVY:-60}
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-10}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG: ${DEBUG:-false}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      SIMILARITY_THRESHOLD: ${SIMILARITY_THRESHOLD:-0.1}
+      MAX_CONTENT_LENGTH: ${MAX_CONTENT_LENGTH:-50000}
+      HF_HOME: /app/.cache
+      # AI Categorizer (opt-in)
+      CATEGORIZER_ENABLED: ${CATEGORIZER_ENABLED:-false}
+      LLM_API_URL: ${LLM_API_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      CATEGORIZER_THRESHOLD: ${CATEGORIZER_THRESHOLD:-0.55}
+      CATEGORIZER_SUB_THRESHOLD: ${CATEGORIZER_SUB_THRESHOLD:-0.50}
+      CATEGORIZER_LLM_TIMEOUT: ${CATEGORIZER_LLM_TIMEOUT:-15}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api-demo:
+    container_name: mesh-api-demo
+    build: .
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    ports:
+      - "127.0.0.1:8001:8000"
+    networks:
+      - default
+      - traefik-net
+    labels:
+      - "traefik.enable=false"
+      - "traefik.docker.network=traefik-net"
+      - "traefik.http.routers.mesh-demo.rule=Host(`${TRAEFIK_DEMO_HOST:-mesh-demo.example.com}`)"
+      - "traefik.http.routers.mesh-demo.entrypoints=https"
+      - "traefik.http.routers.mesh-demo.tls=true"
+      - "traefik.http.routers.mesh-demo.tls.certresolver=letsEncrypt"
+      - "traefik.http.services.mesh-demo.loadbalancer.server.port=8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/mesh_demo
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-intfloat/multilingual-e5-base}
+      AUTH_REQUIRED: "false"
+      CORS_ORIGINS: "*"
+      RATE_LIMIT_SEARCH: "300"
+      RATE_LIMIT_EMBED: "300"
+      DB_POOL_MIN_SIZE: "1"
+      DB_POOL_MAX_SIZE: "10"
+      LOG_LEVEL: INFO
+      DEBUG: "false"
+      ENVIRONMENT: demo
+      SIMILARITY_THRESHOLD: "0.1"
+      MAX_CONTENT_LENGTH: "50000"
+      HF_HOME: /app/.cache
+      CATEGORIZER_ENABLED: "true"
+      LLM_API_URL: ${LLM_API_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  traefik-net:
+    external: true
+
+volumes:
+  mesh_postgres_data:

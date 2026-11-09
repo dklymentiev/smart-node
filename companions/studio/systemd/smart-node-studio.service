@@ -1,0 +1,27 @@
+[Unit]
+Description=Smart Node Studio (unified end-user client; vanilla shell behind Authum)
+After=network-online.target smart-node-core-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=smart-node-studio
+Group=smart-node
+Environment=HOST=__SN_STUDIO_HOST__
+Environment=PORT=8050
+Environment=SN_AVATAR_STATE_DIR=/var/lib/smart-node/agents/avatars/custom
+WorkingDirectory=/opt/smart-node/studio
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=true
+ProtectHome=true
+ReadWritePaths=/var/log/smart-node/studio
+ReadOnlyPaths=/var/lib/smart-node/agents/avatars/custom
+StandardOutput=append:/var/log/smart-node/studio/service.log
+StandardError=append:/var/log/smart-node/studio/service.log
+
+[Install]
+WantedBy=multi-user.target

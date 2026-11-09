@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Workflows</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+<style>
+  .wf-card { border:1px solid var(--rule); border-radius:12px; padding:18px 20px; margin:18px 0; }
+  .wf-card h2 { margin:0 0 2px; }
+  .wf-meta { font-size:.8em; opacity:.6; margin-bottom:6px; }
+  .wf-desc { margin:0 0 14px; max-width:70ch; }
+  .wf-diagram { display:inline-block; margin:0 0 14px; font-size:.88em; }
+  .wf-grants { font-size:.82em; }
+  .chip { display:inline-block; border:1px solid var(--rule); border-radius:999px; padding:2px 10px; font-size:.78em; margin:2px 5px 2px 0; }
+  .wf-empty { opacity:.6; padding:40px 0; }
+  .wf-desc { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; cursor:pointer; }
+  .wf-desc.open { display:block; }
+  .wf-top { display:flex; align-items:baseline; gap:10px; }
+  .wf-status { font-size:.72em; border:1px solid var(--rule); border-radius:999px; padding:1px 9px; color:var(--ink-mute); }
+  .wf-status.on { color:var(--ink); border-color:var(--ink-mute); }
+  .wf-none { color:var(--ink-mute); font-style:italic; }
+  .wf-steps { margin:12px 0 10px; font-size:.86em; }
+  .wf-steps summary { cursor:pointer; color:var(--ink-mute); }
+  .wf-steps table { border-collapse:collapse; margin-top:8px; width:100%; }
+  .wf-steps td { padding:5px 10px 5px 0; border-top:1px solid var(--rule-soft); vertical-align:top; line-height:1.5; }
+  .wf-steps .wf-n { color:var(--ink-faint); width:2em; }
+  .wf-steps .wf-s { white-space:nowrap; font-weight:600; }
+  .wf-who { font-weight:400; color:var(--ink-mute); font-size:.9em; }
+  .wf-end { color:var(--ink-mute); }
+  .wf-sep { color:var(--ink-faint); margin:0 7px; }
+  @media (max-width:640px) { .wf-steps .wf-s { white-space:normal; } }
+  .wf-top .switch { margin-left:auto; align-self:center; }
+  .wf-state { font-size:.82em; color:var(--ink-mute); min-width:2em; align-self:center; }
+  .wf-offnote { margin:4px 0 6px; font-size:.84em; color:var(--ink-mute); }
+  .wf-agent { padding-right:4px; }
+  .wf-x { border:0; background:none; color:var(--ink-mute); cursor:pointer; font:inherit; padding:0 4px; margin-left:2px; }
+  .wf-x:hover { color:var(--ink); }
+  .wf-add { margin-left:4px; padding:3px 8px; border:1px solid var(--rule); border-radius:999px; font:inherit; font-size:.82em; background:var(--surface); color:var(--ink); }
+  .wf-msg { margin:6px 0 0; font-size:.8em; color:var(--ink-mute); min-height:1em; }
+  .wf-card.busy { opacity:.6; pointer-events:none; }
+</style>
+</head>
+<body data-page="workflows" data-group="workflows">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true"><rect x="1" y="1" width="10" height="10" fill="currentColor"/><rect x="9" y="9" width="10" height="10" fill="currentColor"/></svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item active" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ workflows</div>
+    <h1>Workflows</h1>
+    <p class="lead">Multi-step processes your crew runs the same way every time, defined as Rein flows under <code>/opt/smart-node/flows</code>. Here: what each one is and its steps, whether it is on, and which agents may start it. Both switch at once. Runs and their history are in the Studio.</p>
+  </div>
+  <div id="wfList" class="wf-empty"><span class="sn-spinner" aria-hidden="true"></span>Loading workflows</div>
+</main>
+
+<script src="/assets/foundation.js"></script>
+<script src="/assets/shell.js"></script>
+<script src="/assets/workflows.js"></script>
+</body>
+</html>

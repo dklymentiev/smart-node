@@ -1,0 +1,18 @@
+-- 0012_proposed_assignee.sql
+-- The doer an agent named when it filed a task, kept until the owner approves it.
+--
+-- WHY. A task filed by an agent lands awaiting the owner's approval and with no
+-- assignee, on purpose: an agent cannot hand work to a colleague, and so cannot start
+-- a chain of handoffs, on its own authority. But the doer it named was thrown away.
+-- The owner pressed Approve and nobody woke, because there was nobody to wake; the
+-- owner then had to say again who does it, and a doer written into the description
+-- was not a field anything could read.
+--
+-- THE MODEL.
+--   tasks.proposed_assignee  the agent slug the filer named. Not an assignee: it
+--                            wakes nobody and nothing routes by it. NULL when none
+--                            was named. When the owner approves the task and no one
+--                            is assigned, it becomes the assignee, through the normal
+--                            path (so the doer is woken). The owner's own choice at
+--                            approval, if given, wins.
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS proposed_assignee TEXT;

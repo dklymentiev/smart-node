@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+#
+# pre-commit -- refuse a commit that adds what must not enter the repository.
+#
+# Install once per clone:
+#   git config core.hooksPath tools/hooks
+#
+# What it checks: the same patterns as tools/pre-publish.sh, applied only to
+# added lines in the staged diff. The full-tree scan runs at publication; this
+# hook catches violations at the moment of authorship, before they enter
+# history at all.
+#
+# It calls pre-publish.sh --diff --quiet. One set of patterns, two gates.
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCAN="${REPO_ROOT}/tools/pre-publish.sh"
+
+if [[ ! -x "$SCAN" ]]; then
+    echo "[pre-commit] warning: tools/pre-publish.sh not found or not executable; hook skipped" >&2
+    exit 0
+fi
+
+if ! "$SCAN" --diff --quiet; then
+    echo
+    echo "[pre-commit] commit refused. Fix the finding(s) above before committing."
+    echo "             Run tools/pre-publish.sh --diff to see them again."
+    exit 1
+fi
+
+exit 0

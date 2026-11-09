@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Server</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css?v=20261107-2">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="overview" data-group="server">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="10" height="10" fill="currentColor"/>
+        <rect x="9" y="9" width="10" height="10" fill="currentColor"/>
+      </svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item active" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/" class="subnav-item active">Overview</a>
+  <a href="/events/" class="subnav-item">Events</a>
+  <a href="/messages/" class="subnav-item">Messages</a>
+  <a href="/crons/" class="subnav-item">Crons</a>
+  <a href="/services/" class="subnav-item">Services</a>
+  <a href="/systems/" class="subnav-item">Health</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ 01 · server</div>
+    <h1>Overview</h1>
+    <p class="lead">Live snapshot of the node, refreshed every 30 s.</p>
+  </div>
+
+  <section class="runner-panel" id="runnerPanel">
+    <div class="switch-block" data-switch="runner" data-endpoint="/api/system/runner"
+         data-ask-stop="Pause all agents?" data-note-stop="No agent is woken until you switch them back on. Chats you open yourself still reach the model."
+         data-ask-start="Start the agents?" data-note-start="Agents are woken again for the work waiting for them.">
+      <div class="runner-row">
+        <div>
+          <div class="runner-title"><span class="health-dot js-dot"></span><strong>Agents</strong><span class="runner-state js-state">-</span></div>
+          <div class="stat-foot js-since"></div>
+          <div class="stat-foot">Off pauses the agents: the runner stops and wakes no one. Chats you open yourself still reach the model.</div>
+        </div>
+        <button type="button" class="switch js-switch" role="switch" aria-checked="false" aria-label="Agents running" disabled><span class="knob"></span></button>
+      </div>
+      <div class="runner-error js-error" hidden></div>
+    </div>
+    <div class="switch-block" data-switch="models" data-endpoint="/api/system/models"
+         data-ask-stop="Stop the gateway?" data-note-stop="All model traffic stops, voice too. Running sessions are killed, and messages that arrive meanwhile get no reply."
+         data-ask-start="Start the gateway?" data-note-start="Model traffic and voice go out again.">
+      <div class="runner-row">
+        <div>
+          <div class="runner-title"><span class="health-dot js-dot"></span><strong>Gateway</strong><span class="runner-state js-state">-</span></div>
+          <div class="stat-foot js-since"></div>
+          <div class="stat-foot">Emergency stop of the gateway, the node's exit to model providers: nothing goes out, running sessions are killed. Voice stops with it until it goes through the gateway too.</div>
+        </div>
+        <button type="button" class="switch js-switch" role="switch" aria-checked="false" aria-label="Gateway running" disabled><span class="knob"></span></button>
+      </div>
+      <div class="runner-error js-error" hidden></div>
+    </div>
+    <div class="stat-foot runner-note">A reboot or a node update starts everything again.</div>
+  </section>
+
+  <section class="stat-grid" id="statGrid">
+    <article class="stat-card" data-stat="uptime">
+      <div class="stat-label">Uptime</div>
+      <div class="stat-value" data-field="uptime">-</div>
+      <div class="stat-foot" data-field="uptime-since">since -</div>
+    </article>
+
+    <article class="stat-card" data-stat="load">
+      <div class="stat-label">Load</div>
+      <div class="stat-value" data-field="load1">-</div>
+      <div class="stat-foot" data-field="load-breakdown">1m · 5m · 15m</div>
+    </article>
+
+    <article class="stat-card" data-stat="memory">
+      <div class="stat-label">Memory</div>
+      <div class="stat-value" data-field="mem-used">-</div>
+      <div class="stat-foot" data-field="mem-of">of -</div>
+      <div class="stat-bar"><div class="stat-bar-fill" data-field="mem-bar" style="width:0%"></div></div>
+    </article>
+
+    <article class="stat-card" data-stat="disk">
+      <div class="stat-label">Disk</div>
+      <div class="stat-value" data-field="disk-pct">-</div>
+      <div class="stat-foot" data-field="disk-of">- of -</div>
+      <div class="stat-bar"><div class="stat-bar-fill" data-field="disk-bar" style="width:0%"></div></div>
+    </article>
+
+    <article class="stat-card" data-stat="containers">
+      <div class="stat-label">Containers</div>
+      <div class="stat-value" data-field="containers">-</div>
+      <div class="stat-foot" data-field="containers-foot">running</div>
+    </article>
+
+    <article class="stat-card" data-stat="events">
+      <div class="stat-label">Events · 24h</div>
+      <div class="stat-value" data-field="events24h">-</div>
+      <div class="stat-foot"><a class="stat-link" href="/events/">View stream</a></div>
+    </article>
+  </section>
+
+  <section class="container-strip" id="containerStrip" hidden>
+    <div class="section-label">running containers</div>
+    <ul class="chip-row" id="containerNames"></ul>
+  </section>
+
+  <div class="page-meta">
+    <span class="meta-dot" id="liveDot"></span>
+    <span class="meta-text">Last refresh <span id="lastRefresh">-</span> · next in <span id="nextRefresh">-</span> s</span>
+  </div>
+</main>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.6.1</span>
+</footer>
+
+<script src="/assets/shell.js?v=20261107-2"></script>
+<script src="/assets/foundation.js"></script>
+</body>
+</html>

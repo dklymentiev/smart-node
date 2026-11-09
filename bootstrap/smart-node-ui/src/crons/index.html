@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Crons</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css?v=20261107-2">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="crons" data-group="server">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="10" height="10" fill="currentColor"/>
+        <rect x="9" y="9" width="10" height="10" fill="currentColor"/>
+      </svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item active" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/" class="subnav-item">Overview</a>
+  <a href="/events/" class="subnav-item">Events</a>
+  <a href="/messages/" class="subnav-item">Messages</a>
+  <a href="/crons/" class="subnav-item active">Crons</a>
+  <a href="/services/" class="subnav-item">Services</a>
+  <a href="/systems/" class="subnav-item">Health</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ 04 · crons</div>
+    <h1>Scheduled jobs</h1>
+    <p class="lead">Everything this server runs on a schedule: systemd timers, <code>/etc/crontab</code>, <code>/etc/cron.d/*</code> and user crontabs, read live from the host every 30 s. Agents are not on cron: the runner below wakes an agent when it has work.</p>
+  </div>
+
+  <section class="runner-wrap">
+    <div class="section-label">agent wakes</div>
+    <section class="stat-grid stat-grid-4" id="runnerCard">
+      <article class="stat-card">
+        <div class="stat-label"><span class="health-dot" id="runnerDot"></span> Runner</div>
+        <div class="stat-value" data-field="runner-state">-</div>
+        <div class="stat-foot" data-field="runner-state-foot">smart-node-runner</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Agents woken</div>
+        <div class="stat-value" data-field="runner-woken">-</div>
+        <div class="stat-foot" data-field="runner-woken-foot">last 24 h</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Wake cap hit</div>
+        <div class="stat-value" data-field="runner-capped">-</div>
+        <div class="stat-foot">last 24 h · limits on the AI page</div>
+      </article>
+      <article class="stat-card">
+        <div class="stat-label">Wakes failed</div>
+        <div class="stat-value" data-field="runner-failed">-</div>
+        <div class="stat-foot">last 24 h · see Events</div>
+      </article>
+    </section>
+  </section>
+
+  <div class="section-label">scheduled on this server</div>
+  <section class="stat-grid stat-grid-4">
+    <article class="stat-card">
+      <div class="stat-label">Timers</div>
+      <div class="stat-value" data-field="timers">-</div>
+      <div class="stat-foot">systemd</div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-label">Crontab</div>
+      <div class="stat-value" data-field="crontabs">-</div>
+      <div class="stat-foot">entries</div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-label">Node jobs</div>
+      <div class="stat-value" data-field="snscope">-</div>
+      <div class="stat-foot" data-field="snours">-</div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-label">Next Run</div>
+      <div class="stat-value" data-field="nextrun" style="font-size:18px">-</div>
+      <div class="stat-foot" data-field="nextin">in -</div>
+    </article>
+  </section>
+
+  <section class="filter-row">
+    <label class="filter">
+      <span class="filter-label">Scope</span>
+      <select id="filterScope">
+        <option value="mine" selected>node + ours</option>
+        <option value="node">node</option>
+        <option value="ours">ours</option>
+        <option value="system">system</option>
+        <option value="">all</option>
+      </select>
+    </label>
+    <label class="filter">
+      <span class="filter-label">Kind</span>
+      <select id="filterKind">
+        <option value="">all</option>
+        <option value="timer">timer</option>
+        <option value="crontab">crontab</option>
+      </select>
+    </label>
+    <div class="filter-meta">
+      <span class="meta-dot" id="liveDot"></span>
+      <span>Last refresh <span id="lastRefresh">-</span> · <span id="rowCount">-</span> rows</span>
+    </div>
+  </section>
+
+  <div class="table-wrap">
+    <table class="events-table crons-table" id="cronsTable">
+      <thead>
+        <tr>
+          <th class="col-kind">Kind</th>
+          <th class="col-scope">Scope</th>
+          <th class="col-name">Name</th>
+          <th class="col-schedule">Schedule</th>
+          <th class="col-what">What it does</th>
+          <th class="col-last">Last</th>
+          <th class="col-next">Next</th>
+        </tr>
+      </thead>
+      <tbody id="cronsBody">
+        <tr class="empty-row"><td colspan="7"><span class="sn-spinner" aria-hidden="true"></span>Loading</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Cron modal (create + edit) -->
+<div class="modal-scrim" id="cronModalScrim" hidden>
+  <div class="modal-panel" role="dialog" aria-labelledby="cronModalTitle">
+    <header class="modal-head">
+      <h2 id="cronModalTitle">New cron</h2>
+      <button type="button" class="modal-close" id="cronModalClose" aria-label="Close">×</button>
+    </header>
+    <form id="cronForm" class="modal-form" autocomplete="off">
+      <input type="hidden" name="cron_id" value="">
+      <div class="form-row">
+        <label for="cronSchedule">Schedule <small>required · cron expression, e.g. <code>*/15 * * * *</code></small></label>
+        <input type="text" id="cronSchedule" name="schedule" maxlength="100" required>
+      </div>
+      <div class="form-row">
+        <label for="cronCommand">Command <small>required · what runs</small></label>
+        <input type="text" id="cronCommand" name="command" required>
+      </div>
+      <div class="form-row form-row-split">
+        <div>
+          <label for="cronSlug">Slug <small>optional · job id (lowercase)</small></label>
+          <input type="text" id="cronSlug" name="slug" pattern="[a-z][a-z0-9\-]*" maxlength="64">
+        </div>
+        <div>
+          <label for="cronGroup">Group</label>
+          <input type="text" id="cronGroup" name="group" maxlength="50" value="smart-node">
+        </div>
+      </div>
+      <div class="form-row form-row-split">
+        <div>
+          <label for="cronUser">Crontab user</label>
+          <input type="text" id="cronUser" name="crontab_user" maxlength="50" value="root">
+        </div>
+        <div>
+          <label for="cronEnabled">Enabled</label>
+          <select id="cronEnabled" name="enabled">
+            <option value="true" selected>enabled</option>
+            <option value="false">disabled</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="cronDesc">Description</label>
+        <textarea id="cronDesc" name="description" rows="2" maxlength="500"></textarea>
+      </div>
+      <div class="modal-foot">
+        <span class="form-error" id="cronFormError"></span>
+        <div class="modal-foot-actions">
+          <button type="button" class="btn-ghost" id="cronModalCancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="cronSubmit">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.5</span>
+</footer>
+
+<script src="/assets/shell.js?v=20261107-2"></script>
+<script src="/assets/foundation.js"></script>
+</body>
+</html>

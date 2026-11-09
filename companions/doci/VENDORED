@@ -1,0 +1,59 @@
+# Source: upstream, re-vendored
+
+upstream: github.com/dklymentiev/doci (the private mirror is the same tree)
+commit: c57d6c1
+vendored-on: 2026-09-26
+version: 0.3.2
+
+drift: README.md                 -- vendoring note, false upstream
+drift: .dockerignore            -- excludes this marker from the image
+drift: lib/git.php               -- DOCI_DOMAIN comment references documents.sh
+                                    localhost fallback
+drift: api/list.php              -- folder example is product-neutral
+drift: mcp_server.py             -- folder example is product-neutral
+drift: docs/05-api-reference.md  -- response example is product-neutral
+drift: Dockerfile.mcp            removed here: smart-node runs the sidecar from a venv
+
+Deliberately ahead of upstream in this copy:
+
+  * README.md carries a vendoring note at the top. It describes THIS copy and
+    would be false upstream, so it stays here and is re-applied on every
+    re-vendor.
+
+  * lib/git.php has a four-line comment on the DOCI_DOMAIN check in
+    git_commit_and_push that references documents.sh writing "localhost" on
+    no-domain installs. Upstream's shorter comment says
+    DOCI_DOMAIN is required "no silent fallback to doci.local", which is true
+    but does not name the smart-node companion behaviour. The runtime check
+    itself is identical to upstream. Push this comment upstream on next
+    opportunity so this drift retires.
+
+  * The folder examples in api/list.php, mcp_server.py and
+    docs/05-api-reference.md use a neutral project name. The source guard
+    tests/core-business-agnostic.test.sh rejects business names if a later
+    re-vendor restores the upstream examples.
+
+Deliberately not vendored: files/, the document store, which documents.sh
+creates on the node via ensure_files_store.
+
+lib/vendor IS vendored and must stay. It is not composer output -- composer.json
+requires only PHP extensions -- it is Parsedown.php and ParsedownExtended.php
+placed there by hand, and lib/markdown.php loads them. .dockerignore drops a
+top-level vendor/ only, so this path does reach the image. Dropping it silently
+removes markdown rendering. Note that companions/doci/.gitignore line 25 says
+vendor/, which matches this path, so those two files have to be added with
+git add -f. Upstream tracks them the same way. The previous vendored copy
+side-stepped this by keeping Parsedown at the tree root, which is why the
+re-vendor shows them moving.
+
+Why this marker exists at all: doci was the ONE vendored companion without it,
+so tools/vendor-drift.sh did not watch it, and it fell five months behind
+without anything noticing. The copy shipped as 0.2.0-rc while Office called
+/api/list.php, an endpoint upstream added in 2b56f93 and this tree did not
+have, so the documents page rendered empty on every node built from a release.
+Reported from a node in the field against 1.12.33.
+
+Two changes that lived only here were pushed upstream before this re-vendor
+rather than being carried forward again: the handler-set HTTP status fix
+(6f4a4f9) and Dockerfile.mcp (aefeb98). Anything found ahead in future goes the
+same way -- upstream first, then re-vendor.

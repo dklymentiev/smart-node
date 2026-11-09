@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="mb-6">
+  <h1 class="text-2xl font-semibold tracking-tight">Data model</h1>
+  <p class="text-sm text-slate-500 mt-1">
+    Reference for the <code>tasks</code> table and its enums. Source of truth: <code>migrations/0001_initial.sql</code>.
+  </p>
+</section>
+
+<nav class="mb-6 flex flex-wrap gap-2 text-sm">
+  <a href="#tasks" class="px-3 py-1 rounded bg-slate-100 hover:bg-slate-200">tasks (24 columns)</a>
+  <a href="#enums" class="px-3 py-1 rounded bg-slate-100 hover:bg-slate-200">Reference enums</a>
+  <a href="#related" class="px-3 py-1 rounded bg-slate-100 hover:bg-slate-200">Related tables</a>
+  <a href="#pipeline" class="px-3 py-1 rounded bg-slate-100 hover:bg-slate-200">Pipeline</a>
+  <a href="#extension" class="px-3 py-1 rounded bg-slate-100 hover:bg-slate-200">Extension points</a>
+</nav>
+
+<!-- ============================================================ -->
+<!-- TASKS table -->
+<!-- ============================================================ -->
+<section id="tasks" class="mb-10">
+  <h2 class="text-lg font-semibold mb-2">tasks</h2>
+  <p class="text-sm text-slate-600 mb-3">
+    Central entity. Every action a person or agent commits to is a row here. The row carries
+    its full lifecycle: who asked, who is doing, current pipeline stage, all transition timestamps,
+    blocking metadata, and verification state.
+  </p>
+
+  <div class="bg-white border rounded-lg overflow-x-auto">
+    <table class="text-xs w-full">
+      <thead class="bg-slate-50 text-left uppercase tracking-wider text-slate-500">
+        <tr>
+          <th class="px-3 py-2">Field</th>
+          <th class="px-3 py-2">Type</th>
+          <th class="px-3 py-2">Required</th>
+          <th class="px-3 py-2">Default</th>
+          <th class="px-3 py-2">Description</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y align-top">
+        {% set task_fields = [
+          ("id", "int (PK)", "yes", "auto", "Internal numeric identifier. Stable for the lifetime of the row."),
+          ("title", "text", "yes", "—", "Human-readable summary. Must be non-blank."),
+          ("description", "text", "no", "NULL", "Long-form body. Markdown is conventional but the column stores plain text."),
+          ("project_id", "int → projects.id", "no", "NULL", "Project this task belongs to. ON DELETE SET NULL — deleting a project does not delete its tasks."),
+          ("objective_id", "int → objectives.id", "no", "NULL", "Objective this task contributes to. Tasks can attach at any level of the objective tree."),
+          ("assignee", "text → actors.id", "no", "NULL", "Who is doing the task. FK rejects unknown actors. Set NULL on actor delete."),
+          ("requester", "text → actors.id", "no", "NULL", "Who asked for the task. Same FK semantics as assignee."),
+          ("priority", "text (enum)", "yes", "'medium'", "One of: low / medium / high / critical. See enum table below."),
+          ("status", "text (enum)", "yes", "'open'", "Current pipeline stage. One of 10 values — see Pipeline section."),
+          ("created_at", "timestamptz", "yes", "now()", "Row creation. Never updated."),
+          ("updated_at", "timestamptz", "yes", "now()", "Row last-modified. The repo layer bumps this on every update."),
+          ("assessed_at", "timestamptz", "no", "NULL", "Set when the task entered the 'assessing' phase. Persists after later transitions."),
+          ("approved_at", "timestamptz", "no", "NULL", "Set when the task was approved (i.e. left 'awaiting_approval')."),
+          ("execution_started_at", "timestamptz", "no", "NULL", "Set when status first reached 'in_progress'."),
+          ("completed_at", "timestamptz", "no", "NULL", "Set when status reached 'done' (or 'incident' for post-delivery failure)."),
+          ("due_date", "date", "no", "NULL", "Optional hard deadline. Plain date, no timezone."),
+          ("complexity_hint", "text (enum)", "no", "NULL", "Assessor's best-effort sizing: simple / moderate / complex / unknown."),
+          ("scope", "text", "no", "NULL", "Free-form scope note written during assessment. 'What's in, what's out.'"),
+          ("eta", "text", "no", "NULL", "Free-form duration estimate ('2 days', 'same day', '1-2 weeks'). Intentionally not parsed."),
+          ("blocked_by", "int → tasks.id", "no", "NULL", "When blocked_reason='task_dependency', points at the blocker. Self-FK."),
+          ("blocked_reason", "text (enum)", "no", "NULL", "Why this task is paused. One of: task_dependency / external_approval / scheduled_time."),
+          ("external_detail", "text", "no", "NULL", "Free-form description of the external blocker (e.g. 'IT approval request')."),
+          ("previous_status", "text", "no", "NULL", "Snapshot taken when status moves to blocked/escalated; restored on unblock."),
+          ("verification_attempts", "int", "yes", "0", "Counter incremented every time the task bounces back from pending_review.")
+        ] %}
+        {% for f, t, req, dft, desc in task_fields %}
+        <tr>
+          <td class="px-3 py-2 font-mono text-slate-800">{{ f }}</td>
+          <td class="px-3 py-2 text-slate-600">{{ t }}</td>
+          <td class="px-3 py-2">{% if req == "yes" %}<span class="text-rose-600">yes</span>{% else %}<span class="text-slate-400">no</span>{% endif %}</td>
+          <td class="px-3 py-2 font-mono text-slate-500">{{ dft }}</td>
+          <td class="px-3 py-2 text-slate-700">{{ desc }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- ENUMS -->
+<!-- ============================================================ -->
+<section id="enums" class="mb-10">
+  <h2 class="text-lg font-semibold mb-2">Reference enums</h2>
+  <p class="text-sm text-slate-600 mb-3">
+    All check-constraint vocabularies in one place. Adding a value requires a migration.
+  </p>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold text-sm mb-2">priority <span class="text-slate-400 text-xs">(tasks.priority)</span></h3>
+      <table class="text-xs w-full">
+        <tbody class="divide-y">
+          <tr><td class="py-1 font-mono">critical</td><td class="py-1 text-slate-600">Drop-everything. Production outage / SEV-1.</td></tr>
+          <tr><td class="py-1 font-mono">high</td><td class="py-1 text-slate-600">Important but not on fire. Plan it into the current sprint.</td></tr>
+          <tr><td class="py-1 font-mono">medium</td><td class="py-1 text-slate-600">Default. Normal queue.</td></tr>
+          <tr><td class="py-1 font-mono">low</td><td class="py-1 text-slate-600">Nice to have. May sit forever.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold text-sm mb-2">complexity_hint <span class="text-slate-400 text-xs">(tasks.complexity_hint)</span></h3>
+      <table class="text-xs w-full">
+        <tbody class="divide-y">
+          <tr><td class="py-1 font-mono">simple</td><td class="py-1 text-slate-600">Hours. One file, one place, obvious change.</td></tr>
+          <tr><td class="py-1 font-mono">moderate</td><td class="py-1 text-slate-600">A day or two. Touches a couple of components.</td></tr>
+          <tr><td class="py-1 font-mono">complex</td><td class="py-1 text-slate-600">A week or more. Crosses subsystems or needs design.</td></tr>
+          <tr><td class="py-1 font-mono">unknown</td><td class="py-1 text-slate-600">Can't size without spike. Use sparingly — prefer reassessing.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold text-sm mb-2">blocked_reason <span class="text-slate-400 text-xs">(tasks.blocked_reason)</span></h3>
+      <table class="text-xs w-full">
+        <tbody class="divide-y">
+          <tr><td class="py-1 font-mono">task_dependency</td><td class="py-1 text-slate-600">Waiting on another task in this planner. <code>blocked_by</code> points at it.</td></tr>
+          <tr><td class="py-1 font-mono">external_approval</td><td class="py-1 text-slate-600">Waiting on a person/system outside the planner. Use <code>external_detail</code>.</td></tr>
+          <tr><td class="py-1 font-mono">scheduled_time</td><td class="py-1 text-slate-600">Cannot start until a specific date/time arrives (release window, embargo).</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold text-sm mb-2">actors.type <span class="text-slate-400 text-xs">(actors.type)</span></h3>
+      <table class="text-xs w-full">
+        <tbody class="divide-y">
+          <tr><td class="py-1 font-mono">human</td><td class="py-1 text-slate-600">A person.</td></tr>
+          <tr><td class="py-1 font-mono">agent</td><td class="py-1 text-slate-600">An AI/automation agent.</td></tr>
+          <tr><td class="py-1 font-mono">system</td><td class="py-1 text-slate-600">Reserved. The 'system' actor is the default for unattributed actions.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold text-sm mb-2">objectives.type <span class="text-slate-400 text-xs">(6 levels)</span></h3>
+      <table class="text-xs w-full">
+        <tbody class="divide-y">
+          <tr><td class="py-1 font-mono">strategy</td><td class="py-1 text-slate-600">Top-level direction. Multi-year horizon.</td></tr>
+          <tr><td class="py-1 font-mono">roadmap</td><td class="py-1 text-slate-600">Plan to execute a strategy. Quarters / a year.</td></tr>
+          <tr><td class="py-1 font-mono">milestone</td><td class="py-1 text-slate-600">Observable deliverable on the roadmap.</td></tr>
+          <tr><td class="py-1 font-mono">goal</td><td class="py-1 text-slate-600">Outcome you want to reach in a milestone.</td></tr>
+          <tr><td class="py-1 font-mono">initiative</td><td class="py-1 text-slate-600">Concrete body of work toward a goal.</td></tr>
+          <tr><td class="py-1 font-mono">campaign</td><td class="py-1 text-slate-600">Time-boxed execution of an initiative.</td></tr>
+        </tbody>
+      </table>
+      <p class="text-[11px] text-slate-500 mt-2">Tree shape is enforced by <code>parent_id</code>, not by type — types are advisory labels.</p>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <h3 class="font-semibold text-sm mb-2">objectives.status / projects.status</h3>
+      <table class="text-xs w-full">
+        <tbody class="divide-y">
+          <tr><td class="py-1 font-mono">active</td><td class="py-1 text-slate-600">In play. (Both projects and objectives.)</td></tr>
+          <tr><td class="py-1 font-mono">archived</td><td class="py-1 text-slate-600">Projects only. Hidden from default views, data preserved.</td></tr>
+          <tr><td class="py-1 font-mono">completed</td><td class="py-1 text-slate-600">Objectives only. Goal achieved.</td></tr>
+          <tr><td class="py-1 font-mono">paused</td><td class="py-1 text-slate-600">Objectives only. Stopped intentionally, may resume.</td></tr>
+          <tr><td class="py-1 font-mono">cancelled</td><td class="py-1 text-slate-600">Objectives only. Killed, will not resume.</td></tr>
+          <tr><td class="py-1 font-mono">draft</td><td class="py-1 text-slate-600">Objectives only. Proposed but not yet committed.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- PIPELINE -->
+<!-- ============================================================ -->
+<section id="pipeline" class="mb-10">
+  <h2 class="text-lg font-semibold mb-2">Pipeline (tasks.status)</h2>
+  <p class="text-sm text-slate-600 mb-3">
+    Ten values. Six form the normal flow (left to right). Two are paused, one is terminal, one is post-delivery.
+  </p>
+
+  <div class="bg-white border rounded-lg overflow-x-auto">
+    <table class="text-xs w-full">
+      <thead class="bg-slate-50 text-left uppercase tracking-wider text-slate-500">
+        <tr>
+          <th class="px-3 py-2">Status</th>
+          <th class="px-3 py-2">Bucket</th>
+          <th class="px-3 py-2">What it means</th>
+          <th class="px-3 py-2">Timestamp set on entry</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y align-top">
+        {% set pipeline_rows = [
+          ("open",              "INTAKE",        "Just filed. Nobody has looked at it yet.",                       "created_at"),
+          ("assessing",         "ASSESSMENT",    "Owner is investigating. Scope / complexity / ETA being filled.", "assessed_at"),
+          ("awaiting_approval", "APPROVAL",      "Assessment done, needs sign-off before execution.",              "—"),
+          ("in_progress",       "EXECUTION",     "Work actually underway.",                                        "approved_at, execution_started_at"),
+          ("pending_review",    "VERIFICATION",  "Submitted for review. Two strikes => auto-escalation.",          "—"),
+          ("done",              "DELIVERY",      "Closed successfully.",                                           "completed_at"),
+          ("blocked",           "Paused",        "Cannot proceed. previous_status snapshotted for restore.",       "—"),
+          ("escalated",         "Paused",        "Needs higher-level attention. previous_status snapshotted.",     "—"),
+          ("rejected",          "Terminal",      "Will not be done. No further transitions.",                     "—"),
+          ("incident",          "Post-delivery", "A previously-done task surfaced a production problem.",          "completed_at (re-set)")
+        ] %}
+        {% for status, bucket, meaning, ts_set in pipeline_rows %}
+        <tr>
+          <td class="px-3 py-2 font-mono"><span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">{{ status }}</span></td>
+          <td class="px-3 py-2 text-slate-600">{{ bucket }}</td>
+          <td class="px-3 py-2 text-slate-700">{{ meaning }}</td>
+          <td class="px-3 py-2 font-mono text-slate-500">{{ ts_set }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mt-3 text-xs text-slate-500">
+    Transitions are validated by a matrix in <code>planner.pipeline.allowed_from()</code>; every move writes a row to <code>task_log</code> and enqueues a <code>task_notifications</code> row.
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- RELATED TABLES -->
+<!-- ============================================================ -->
+<section id="related" class="mb-10">
+  <h2 class="text-lg font-semibold mb-2">Related tables (12 total)</h2>
+  <p class="text-sm text-slate-600 mb-3">
+    Everything around <code>tasks</code>. All cascade on task delete unless noted.
+  </p>
+
+  <div class="bg-white border rounded-lg overflow-x-auto">
+    <table class="text-xs w-full">
+      <thead class="bg-slate-50 text-left uppercase tracking-wider text-slate-500">
+        <tr>
+          <th class="px-3 py-2">Table</th>
+          <th class="px-3 py-2">Purpose</th>
+          <th class="px-3 py-2">Key fields</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y align-top">
+        {% set related = [
+          ("actors",
+           "Registry of who can act. FK target for tasks.assignee, tasks.requester, task_comments.author, task_log.actor.",
+           "id (text PK), display_name, type (human/agent/system), active"),
+          ("projects",
+           "Top-level grouping. slug is the CLI/URL handle.",
+           "id, slug (unique), title, status (active/archived), sort_order"),
+          ("objectives",
+           "Hierarchical goals above the task level. Self-referential tree via parent_id.",
+           "id, parent_id, project_id, title, type (6 enum), status (5 enum)"),
+          ("task_comments",
+           "Plain-text discussion attached to a task.",
+           "task_id, author (→ actors), content, comment_type (assessment/review/escalation/incident_followup or NULL)"),
+          ("task_relations",
+           "Typed graph edges between tasks (parent / child / hotfix / postmortem). Unique per (task_id, related_id, relation).",
+           "task_id, related_id, relation"),
+          ("task_commits",
+           "Source-control commits attached to a task. content_body stores the full commit message locally so reviewers/agents don't round-trip to GitHub.",
+           "task_id, repo, commit_hash, message, author, content_body"),
+          ("task_log",
+           "Append-only audit trail. Every state change writes one row. Never updated, never deleted.",
+           "task_id, action, old_value, new_value, actor (→ actors)"),
+          ("task_tags",
+           "Free-form labels. Composite PK (task_id, tag) means each tag appears once per task. No taxonomy enforced.",
+           "task_id, tag"),
+          ("task_links",
+           "External-resource references. kind is free-form (plan/worklog/document/pr/deploy/session/external). Planner is agnostic to what is behind the URL.",
+           "task_id, kind, url, label"),
+          ("task_notifications",
+           "Outbound event queue. Planner writes events on transitions. Downstream consumers poll WHERE fired_at IS NULL, deliver, set fired_at.",
+           "task_id, event_type, notify_target, payload (jsonb), fired_at"),
+          ("api_keys",
+           "API key authentication. key_hash is sha256 of the plaintext; plaintext is shown once at creation. Revocation is soft (revoked_at set).",
+           "key_hash (unique), label, actor_id (→ actors), last_used_at, revoked_at"),
+          ("_migrations",
+           "Internal: applied migration tracker. Do not write to by hand.",
+           "name, applied_at")
+        ] %}
+        {% for table, purpose, fields in related %}
+        <tr>
+          <td class="px-3 py-2 font-mono text-slate-800">{{ table }}</td>
+          <td class="px-3 py-2 text-slate-700">{{ purpose }}</td>
+          <td class="px-3 py-2 text-slate-500 font-mono">{{ fields }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- EXTENSION POINTS -->
+<!-- ============================================================ -->
+<section id="extension" class="mb-10">
+  <h2 class="text-lg font-semibold mb-2">Extension points</h2>
+  <p class="text-sm text-slate-600 mb-3">
+    Planner is intentionally agnostic about <em>what</em> kinds of work, communication, or events
+    are attached to a task. Three tables are free-form by design — any external service can write
+    into them without a schema change. <code>task_notifications</code> is the reverse channel:
+    Planner writes, downstream services read.
+  </p>
+
+  <div class="bg-white border rounded-lg overflow-x-auto mb-4">
+    <table class="text-xs w-full">
+      <thead class="bg-slate-50 text-left uppercase tracking-wider text-slate-500">
+        <tr>
+          <th class="px-3 py-2">Bucket</th>
+          <th class="px-3 py-2">Direction</th>
+          <th class="px-3 py-2">Why it's open-ended</th>
+          <th class="px-3 py-2">Typical use</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y align-top">
+        <tr>
+          <td class="px-3 py-2 font-mono">task_log</td>
+          <td class="px-3 py-2 text-slate-600">inbound (services write)</td>
+          <td class="px-3 py-2 text-slate-700"><code>action</code> is plain text with no CHECK-constraint. Append-only by convention.</td>
+          <td class="px-3 py-2 text-slate-700">Audit / activity events: <code>created</code>, <code>status</code>, <code>tag_added</code>, <code>email_received</code>, <code>build_failed</code>, <code>review_passed</code>...</td>
+        </tr>
+        <tr>
+          <td class="px-3 py-2 font-mono">task_links</td>
+          <td class="px-3 py-2 text-slate-600">inbound</td>
+          <td class="px-3 py-2 text-slate-700"><code>kind</code> is plain text; URL is just a URL. Planner has no resolver — clients decide what to do with the link.</td>
+          <td class="px-3 py-2 text-slate-700">Pointers to anything: PR, deploy, dashboard, document, recording, email thread, support ticket, CI run.</td>
+        </tr>
+        <tr>
+          <td class="px-3 py-2 font-mono">task_comments</td>
+          <td class="px-3 py-2 text-slate-600">inbound</td>
+          <td class="px-3 py-2 text-slate-700"><code>content</code> is plain text. <code>comment_type</code> is optional and free-form (no enum).</td>
+          <td class="px-3 py-2 text-slate-700">Human conversation, agent narration, structured payloads serialized as text.</td>
+        </tr>
+        <tr>
+          <td class="px-3 py-2 font-mono">task_notifications</td>
+          <td class="px-3 py-2 text-slate-600">outbound (services read)</td>
+          <td class="px-3 py-2 text-slate-700"><code>event_type</code> free-form. <code>payload</code> is JSONB. <code>notify_target</code> is a free-form identifier the consumer interprets.</td>
+          <td class="px-3 py-2 text-slate-700">Planner writes on transitions. Subscribers poll <code>WHERE fired_at IS NULL</code>, deliver, set <code>fired_at</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="font-semibold text-sm mt-6 mb-2">Three levels of integration</h3>
+  <p class="text-sm text-slate-600 mb-3">
+    Pick by how much structure you need. There is no wrong choice — you can mix.
+  </p>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+    <div class="bg-white border rounded-lg p-4">
+      <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Level 1</div>
+      <h4 class="font-semibold mb-2">Just attach a URL</h4>
+      <p class="text-xs text-slate-600 mb-2">Service has a permalink to its own UI. Drop it in <code>task_links</code> and stop.</p>
+      <pre class="text-[10px] bg-slate-50 border rounded p-2 overflow-x-auto"><code>POST /api/v1/tasks/1217/links
+X-API-Key: &lt;service-key&gt;
+{
+  "kind": "email",
+  "url":  "mail://thread/abc123",
+  "label": "Re: Lander Journal"
+}</code></pre>
+      <p class="text-[11px] text-slate-500 mt-2">No structure, no search inside. UI shows a link with a kind label.</p>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Level 2</div>
+      <h4 class="font-semibold mb-2">Comment as the service</h4>
+      <p class="text-xs text-slate-600 mb-2">Service narrates into the task timeline with its own actor.</p>
+      <pre class="text-[10px] bg-slate-50 border rounded p-2 overflow-x-auto"><code>POST /api/v1/tasks/1217/comments
+X-API-Key: &lt;service-key&gt;
+{
+  "content": "[IN 04/12 11:49 from Sonat] Re: Lander Journal — acknowledges and approves",
+  "comment_type": "email"
+}</code></pre>
+      <p class="text-[11px] text-slate-500 mt-2">Text-only payload. UI can filter / colour by <code>comment_type</code>.</p>
+    </div>
+
+    <div class="bg-white border rounded-lg p-4">
+      <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Level 3</div>
+      <h4 class="font-semibold mb-2">Own table, FK to tasks.id</h4>
+      <p class="text-xs text-slate-600 mb-2">You need structured fields (from, subject, direction, thread_id). Add a migration:</p>
+      <pre class="text-[10px] bg-slate-50 border rounded p-2 overflow-x-auto"><code>CREATE TABLE task_emails (
+  id          SERIAL PRIMARY KEY,
+  task_id     INT NOT NULL
+              REFERENCES tasks(id)
+              ON DELETE CASCADE,
+  direction   TEXT,   -- in / out
+  from_addr   TEXT,
+  subject     TEXT,
+  body        TEXT,
+  received_at TIMESTAMPTZ
+);</code></pre>
+      <p class="text-[11px] text-slate-500 mt-2">First-class entity. Searchable, indexable, own UI section.</p>
+    </div>
+  </div>
+
+  <h3 class="font-semibold text-sm mt-6 mb-2">Wiring an external service</h3>
+  <ol class="list-decimal list-inside text-sm text-slate-700 space-y-2 mb-4">
+    <li>
+      <strong>Register an actor</strong> for the service.
+      <pre class="mt-1 text-[10px] bg-slate-50 border rounded p-2 overflow-x-auto"><code>INSERT INTO actors (id, display_name, type)
+VALUES ('mail-service', 'Mail Service', 'agent');</code></pre>
+    </li>
+    <li>
+      <strong>Issue an API key</strong> via <a href="/ui/keys" class="text-blue-600 hover:underline">/ui/keys</a> (bind to <code>mail-service</code>).
+      Capture the plaintext shown once.
+    </li>
+    <li>
+      <strong>Service writes</strong> via REST (<code>X-API-Key</code> header). Audit attribution flows
+      naturally: every comment / link / log row carries <code>actor = 'mail-service'</code>.
+    </li>
+    <li>
+      <strong>For the reverse direction</strong>, the service polls <code>task_notifications</code>
+      (or a future GET endpoint over it) <code>WHERE fired_at IS NULL</code>, processes the event,
+      then stamps <code>fired_at = now()</code>. Planner is unaware of consumers — add or remove
+      any number of them without code changes.
+    </li>
+  </ol>
+
+  <h3 class="font-semibold text-sm mt-6 mb-2">What is and isn't there today</h3>
+  <ul class="text-sm text-slate-700 list-disc list-inside space-y-1">
+    <li><strong>Available now</strong>: POST/GET for <code>comments</code>, <code>links</code>, <code>tags</code>, <code>commits</code>, <code>relations</code>; GET for <code>log</code>.</li>
+    <li><strong>Missing</strong>: POST endpoint for <code>task_log</code>. Currently only the repo layer writes there. To let external services emit arbitrary timeline events (<code>email_received</code>, <code>build_failed</code>), add <code>POST /api/v1/tasks/{id}/log</code>.</li>
+    <li><strong>Missing</strong>: GET endpoint for <code>task_notifications</code>. Today consumers must read PostgreSQL directly.</li>
+  </ul>
+
+  <h3 class="font-semibold text-sm mt-6 mb-2">Guarantees the schema gives</h3>
+  <ul class="text-sm text-slate-700 list-disc list-inside space-y-1">
+    <li><code>actor</code> is an FK to <code>actors.id</code> in <code>task_log</code> and <code>task_comments.author</code> — unknown actors are rejected at the DB layer (no anonymous writes).</li>
+    <li><code>task_log</code> rows are intended append-only. Nothing in the schema enforces it (no trigger), but the repo never updates or deletes them. Treat as immutable.</li>
+    <li>All child tables (<code>task_comments</code>, <code>task_log</code>, <code>task_tags</code>, <code>task_links</code>, <code>task_relations</code>, <code>task_commits</code>, <code>task_notifications</code>) <code>ON DELETE CASCADE</code> from tasks — deleting a task cleans up its history.</li>
+    <li><code>api_keys.key_hash</code> is sha256 of plaintext. Plaintext shown once at creation, never stored.</li>
+  </ul>
+</section>
+
+<p class="text-xs text-slate-400">
+  Generated from <code>migrations/0001_initial.sql</code> and <code>migrations/0002_api_keys.sql</code>.
+  Run <code>docker exec planner-oss-db-1 psql -U planner -d planner -c "\d tasks"</code> for the live schema.
+</p>
+
+{% endblock %}

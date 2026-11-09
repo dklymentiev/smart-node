@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "planner"
+version = "0.3.0"
+description = "Self-hostable task management with a six-stage pipeline, objective hierarchy, and CLI/REST/MCP/UI parity"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Dmytro Klymentiev" },
+]
+keywords = [
+    "task-management",
+    "tasks",
+    "planner",
+    "mcp",
+    "self-hosted",
+    "agents",
+    "postgresql",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Software Development :: Bug Tracking",
+]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "asyncpg>=0.30",
+    "pydantic>=2.9",
+    "python-dotenv>=1.0",
+    "mcp>=0.9",
+    "click>=8.1",
+    "jinja2>=3.1",
+    # RUNTIME, not a test dep: planner/notify.py imports httpx at module level for
+    # assignee notifications, and app.py imports the routers that import it. It
+    # sat only in the dev extra, so a container built the documented way
+    # (`pip install .`) died at import with "No module named 'httpx'" and never
+    # became healthy -- which is how a node install failed at the tracking
+    # companion (2026-07-29).
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[project.scripts]
+planner = "planner.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/planner"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

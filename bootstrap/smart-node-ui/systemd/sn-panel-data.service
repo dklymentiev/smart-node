@@ -1,0 +1,10 @@
+[Unit]
+Description=Smart Node panel: render data snapshots (overview.json, events.json)
+After=postgresql@16-smartnode.service docker.service
+Requires=postgresql@16-smartnode.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sn-panel-data.sh
+Nice=10
+IOSchedulingClass=idle

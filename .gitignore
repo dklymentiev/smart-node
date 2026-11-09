@@ -1,0 +1,21 @@
+# Per-container SSH keys + known_hosts -- NEVER commit (private key inside).
+.ssh/
+
+# Editor / OS junk
+*.bak
+*.swp
+*.tmp
+*~
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Runtime logs
+*.log
+
+# Test and build scratch
+.pytest_cache/
+node_modules/
+tests/.tmp_*/

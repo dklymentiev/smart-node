@@ -1,0 +1,22 @@
+[Unit]
+Description=Smart Node communication -- slack adapter (Socket Mode ingest daemon)
+After=network-online.target postgresql@16-smartnode.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=smart-node-communication
+Group=smart-node
+WorkingDirectory=/opt/smart-node/communication
+EnvironmentFile=/opt/smart-node/communication/.env
+ExecStart=/opt/smart-node/communication/.venv/bin/python -m adapters.slack.adapter
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=true
+ProtectHome=true
+ReadWritePaths=/opt/smart-node/communication /var/log/smart-node/communication
+
+[Install]
+WantedBy=multi-user.target

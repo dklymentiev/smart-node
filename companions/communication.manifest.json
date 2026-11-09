@@ -1,0 +1,11 @@
+{
+  "name": "communication",
+  "title": "Channels",
+  "provides": "email, Telegram and other channels for agents",
+  "requires": [
+    "dispatcher"
+  ],
+  "works_without": {},
+  "sidecars": "communication comm-tool-usage.md _shared",
+  "icon": "messages-square"
+}

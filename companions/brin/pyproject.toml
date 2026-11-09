@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "unit: Pure unit tests (models, utils) -- no I/O",
+    "service: Service-layer tests with SQLite or HTTP mocks",
+    "integration: Full-stack API endpoint tests via ASGI transport",
+]

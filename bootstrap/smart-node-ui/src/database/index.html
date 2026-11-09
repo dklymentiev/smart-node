@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Database</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+<style>
+  /* Theme tokens only (shell.css): the page used to hardcode #fff and light
+     greys, so on the dark theme it was a white table on a black page. */
+  .db-wrap{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start;}
+  .db-list{border:1px solid var(--rule);border-radius:12px;overflow:auto;max-height:72vh;background:var(--paper);}
+  .db-schema{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--ink-mute);padding:11px 14px 5px;}
+  .db-tbl{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;cursor:pointer;
+    font-size:13px;color:var(--ink-2);border-left:2px solid transparent;}
+  .db-tbl:hover{background:var(--surface);}
+  .db-tbl.active{background:var(--surface);border-left-color:var(--ink);color:var(--ink);font-weight:600;}
+  .db-tbl .rows{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-faint);}
+  .db-view{min-width:0;}
+  .db-view h2{font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 3px;color:var(--ink);}
+  .db-view .sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-mute);margin-bottom:14px;}
+  .db-scroll{overflow:auto;border:1px solid var(--rule);border-radius:12px;background:var(--paper);max-height:72vh;}
+  table.db{border-collapse:collapse;width:100%;font-size:12px;color:var(--ink-2);}
+  table.db th{position:sticky;top:0;background:var(--paper-warm);text-align:left;padding:8px 11px;border-bottom:1px solid var(--rule);
+    font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.04em;color:var(--ink-mute);white-space:nowrap;}
+  table.db td{padding:7px 11px;border-bottom:1px solid var(--rule-soft);vertical-align:top;font-family:'JetBrains Mono',monospace;
+    font-size:11.5px;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  table.db tr:hover td{background:var(--surface);}
+  td.null{color:var(--ink-faint);font-style:italic;}
+  .db-empty{padding:40px;text-align:center;color:var(--ink-faint);font-size:13px;}
+  @media(max-width:820px){.db-wrap{grid-template-columns:1fr;}}
+  .content{max-width:none;}
+  table.db tbody tr{cursor:pointer;}
+  /* Row modal: the table cuts every cell to one line, so a payload or a
+     long text could only be read from the hover title. The modal shows the row
+     already loaded, whole; it makes no request of its own. */
+  .db-row-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-mute);margin-top:3px;}
+  .db-row{padding:6px 24px 20px;}
+  .db-field{padding:10px 0;border-bottom:1px solid var(--rule-soft);}
+  .db-field:last-child{border-bottom:0;}
+  .db-field .k{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.04em;color:var(--ink-mute);margin-bottom:4px;}
+  .db-field .v{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink);white-space:pre-wrap;word-break:break-word;
+    margin:0;max-height:320px;overflow:auto;}
+  .db-field .v.null{color:var(--ink-faint);font-style:italic;}
+</style>
+</head>
+<body data-page="database" data-group="database">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true"><rect x="1" y="1" width="10" height="10" fill="currentColor"/><rect x="9" y="9" width="10" height="10" fill="currentColor"/></svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item active" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/database/" class="subnav-item active">Tables</a>
+</nav>
+
+<main class="content content-wide">
+  <p class="eyebrow" style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-mute);margin:0 0 4px;">/ Database</p>
+  <h1 style="font-size:25px;font-weight:700;letter-spacing:-.03em;margin:0 0 4px;">Core database</h1>
+  <p style="color:var(--ink-mute);font-size:14px;margin:0 0 24px;">All base tables in the node's core schemas. Click a table to view its newest 100 rows. Read-only.</p>
+
+  <div class="db-wrap">
+    <div class="db-list" id="dbList"><div class="db-empty"><span class="sn-spinner" aria-hidden="true"></span>Loading</div></div>
+    <div class="db-view" id="dbView">
+      <div class="db-empty" style="border:1px dashed var(--rule);border-radius:12px;">Select a table on the left.</div>
+    </div>
+  </div>
+</main>
+
+<div class="modal-scrim" id="dbRowModal" hidden>
+  <div class="modal-panel modal-panel-wide" role="dialog" aria-modal="true" aria-labelledby="dbRowTitle">
+    <div class="modal-head">
+      <div><h2 id="dbRowTitle"></h2><div class="db-row-sub" id="dbRowSub"></div></div>
+      <button class="modal-close" id="dbRowClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="db-row" id="dbRowBody"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+  var listEl = document.getElementById('dbList');
+  var viewEl = document.getElementById('dbView');
+
+  fetch('/api/database/tables', {cache:'no-store', credentials:'same-origin'})
+    .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(d){ renderList(d.tables || []); })
+    .catch(function(e){ listEl.innerHTML = '<div class="db-empty">Failed to load tables ('+esc(e.message)+'). super-admin only.</div>'; });
+
+  function renderList(tables){
+    if(!tables.length){ listEl.innerHTML = '<div class="db-empty">No tables.</div>'; return; }
+    var bySchema = {};
+    tables.forEach(function(t){ (bySchema[t.schema] = bySchema[t.schema] || []).push(t); });
+    var html = '';
+    Object.keys(bySchema).forEach(function(schema){
+      html += '<div class="db-schema">'+esc(schema)+'</div>';
+      bySchema[schema].forEach(function(t){
+        html += '<div class="db-tbl" data-schema="'+esc(t.schema)+'" data-name="'+esc(t.name)+'">'
+              + '<span>'+esc(t.name)+'</span><span class="rows">~'+(t.est_rows||0)+'</span></div>';
+      });
+    });
+    listEl.innerHTML = html;
+    listEl.querySelectorAll('.db-tbl').forEach(function(el){
+      el.addEventListener('click', function(){
+        listEl.querySelectorAll('.db-tbl').forEach(function(x){ x.classList.remove('active'); });
+        el.classList.add('active');
+        loadTable(el.getAttribute('data-schema'), el.getAttribute('data-name'));
+      });
+    });
+  }
+
+  function loadTable(schema, name){
+    viewEl.innerHTML = '<div class="db-empty">Loading '+esc(schema)+'.'+esc(name)+'…</div>';
+    fetch('/api/database/table/'+encodeURIComponent(schema)+'/'+encodeURIComponent(name), {cache:'no-store', credentials:'same-origin'})
+      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(d){ renderTable(d); })
+      .catch(function(e){ viewEl.innerHTML = '<div class="db-empty">Failed ('+esc(e.message)+').</div>'; });
+  }
+
+  function renderTable(d){
+    // "newest 100 of 12,345 · by created_at": which rows these are, out of how many.
+    var total = (d.total != null) ? (d.total_estimated ? '≈' : '') + Number(d.total).toLocaleString() : '?';
+    var which = d.order_by ? 'newest ' + d.count + ' of ' + total + ' · by ' + esc(d.order_by)
+                           : 'first ' + d.count + ' of ' + total + ' · no time or id column to sort by';
+    var head = '<h2>'+esc(d.schema)+'.'+esc(d.table)+'</h2><div class="sub">'+which+' · '+d.columns.length+' columns</div>';
+    if(!d.rows.length){ viewEl.innerHTML = head + '<div class="db-scroll"><div class="db-empty">Table is empty.</div></div>'; return; }
+    var t = '<div class="db-scroll"><table class="db"><thead><tr>';
+    d.columns.forEach(function(c){ t += '<th>'+esc(c)+'</th>'; });
+    t += '</tr></thead><tbody>';
+    d.rows.forEach(function(row){
+      t += '<tr>';
+      d.columns.forEach(function(c){
+        var v = row[c];
+        if(v === null || v === undefined){ t += '<td class="null">null</td>'; }
+        else { var s = (typeof v === 'object') ? JSON.stringify(v) : String(v); t += '<td title="'+esc(s)+'">'+esc(s)+'</td>'; }
+      });
+      t += '</tr>';
+    });
+    t += '</tbody></table></div>';
+    viewEl.innerHTML = head + t;
+    viewEl.querySelectorAll('table.db tbody tr').forEach(function(tr, i){
+      tr.addEventListener('click', function(){ openRow(d, d.rows[i], i); });
+    });
+  }
+
+  var modal = document.getElementById('dbRowModal');
+  function openRow(d, row, i){
+    document.getElementById('dbRowTitle').textContent = d.schema + '.' + d.table;
+    document.getElementById('dbRowSub').textContent = 'row ' + (i + 1) + ' of ' + d.count + ' · ' + d.columns.length + ' columns';
+    var html = '';
+    d.columns.forEach(function(c){
+      var v = row[c];
+      var body;
+      if(v === null || v === undefined){ body = '<pre class="v null">null</pre>'; }
+      else {
+        // Objects come from json/jsonb columns; indent them so a payload reads.
+        var s = (typeof v === 'object') ? JSON.stringify(v, null, 2) : String(v);
+        body = '<pre class="v">' + esc(s) + '</pre>';
+      }
+      html += '<div class="db-field"><div class="k">' + esc(c) + '</div>' + body + '</div>';
+    });
+    document.getElementById('dbRowBody').innerHTML = html;
+    modal.hidden = false;
+  }
+  function closeRow(){ modal.hidden = true; }
+  document.getElementById('dbRowClose').addEventListener('click', closeRow);
+  modal.addEventListener('click', function(e){ if(e.target === modal) closeRow(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && !modal.hidden) closeRow(); });
+})();
+</script>
+<script src="/assets/shell.js"></script>
+</body>
+</html>

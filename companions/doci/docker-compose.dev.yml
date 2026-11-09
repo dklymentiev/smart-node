@@ -1,0 +1,88 @@
+﻿# Development environment - fully self-contained
+# Usage: docker compose -f docker-compose.dev.yml up -d
+#
+# Defaults (dev only):
+#   DB:   doci_app / doci_dev_pass
+#   Auth: DOCI_ENV=development + DOCI_DEV_AUTO_AUTH=true auto-authenticate as user "dev"
+#   App:  http://localhost:8080
+
+services:
+  doci:
+    build: .
+    container_name: doci-dev
+    ports:
+      - "8080:80"
+    environment:
+      - DB_HOST=doci-db
+      - DB_PORT=5432
+      - DB_NAME=doci
+      - DB_USER=doci_app
+      - DB_PASS=doci_dev_pass
+      # API-key auth for service-to-service / CLI / MCP. The bcrypt
+      # hash below verifies the key "dev-test-key-not-for-production"
+      # -- intentionally weak and documented; `tests/api-test.sh`
+      # uses this key. Browser sessions still auto-auth as "dev"
+      # via the DOCI_ENV/DOCI_DEV_AUTO_AUTH pair below.
+      - DOCI_API_KEY_HASH=$2y$10$73ReJHdHL.5POdiQwDCsxOJTe/HvsVGmP5BumyYxuN0bs5LsHzC/a
+      # === AI gateway (OpenAI-compatible /v1/chat/completions) ===
+      # Leave AI_GATEWAY_URL empty to disable AI replies entirely.
+      # When set, point it at any OpenAI-compatible provider, e.g.:
+      #   OpenAI:     https://api.openai.com/v1
+      #   OpenRouter: https://openrouter.ai/api/v1   (one key, all models incl. Claude)
+      #   Together:   https://api.together.xyz/v1
+      #   Groq:       https://api.groq.com/openai/v1
+      #   Ollama:     http://localhost:11434/v1
+      # Anthropic native (api.anthropic.com) is NOT supported -- it
+      # speaks /v1/messages, not /chat/completions.
+      - AI_GATEWAY_URL=
+      - AI_API_KEY=
+      # Model aliases the UI exposes (sonnet/opus/haiku) -> real model
+      # IDs at your provider. OpenRouter examples shown; for OpenAI
+      # use gpt-4o / gpt-4o-mini / o1 etc.
+      - AI_MODEL_SONNET=anthropic/claude-3.5-sonnet
+      - AI_MODEL_OPUS=anthropic/claude-3-opus
+      - AI_MODEL_HAIKU=anthropic/claude-3.5-haiku
+      - AI_GATEWAY_SSL_VERIFY=true
+      - DOCI_ENV=development
+      - DOCI_DEV_AUTO_AUTH=true
+      - DOCI_LOG_LEVEL=DEBUG
+      # Dev compose runs on a private bridge network and binds 8080
+      # to localhost; trust everything inside the dev pod.
+      - DOCI_TRUSTED_PROXIES=0.0.0.0/0
+      - DOCI_DOMAIN=localhost
+      - APP_URL=http://localhost:8080
+      - AUTH_URL=
+      - TZ=UTC
+    volumes:
+      - ./files:/var/www/html/files
+    depends_on:
+      doci-db:
+        condition: service_healthy
+    networks:
+      - doci-dev
+
+  doci-db:
+    image: postgres:16-alpine
+    container_name: doci-db
+    environment:
+      - POSTGRES_DB=doci
+      - POSTGRES_USER=doci_app
+      - POSTGRES_PASSWORD=doci_dev_pass
+    volumes:
+      - doci-pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U doci_app -d doci"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - doci-dev
+
+networks:
+  doci-dev:
+
+volumes:
+  doci-pgdata:

@@ -1,0 +1,9 @@
+{
+  "name": "voice",
+  "title": "Voice",
+  "provides": "talk to agents by voice",
+  "requires": [],
+  "works_without": {},
+  "sidecars": "voice",
+  "icon": "mic"
+}

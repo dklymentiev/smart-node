@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Integrations</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="integrations" data-group="ai">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="10" height="10" fill="currentColor"/>
+        <rect x="9" y="9" width="10" height="10" fill="currentColor"/>
+      </svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item active" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/ai/" class="subnav-item">AI Gateway</a>
+  <a href="/integrations/" class="subnav-item active">Integrations</a>
+  <a href="/tools/" class="subnav-item">Tools</a>
+  <a href="/mcp/" class="subnav-item">MCP</a>
+  <a href="/runtimes/" class="subnav-item">Runtimes</a>
+  <a href="/agents/" class="subnav-item">Agents</a>
+  <a href="/specialists/" class="subnav-item">Specialists</a>
+  <a href="/policies/" class="subnav-item">Policies</a>
+  <a href="/limits/" class="subnav-item">Limits</a>
+  <a href="/secrets/" class="subnav-item">Secrets</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ 06 · integrations</div>
+    <h1>Integrations</h1>
+    <p class="lead">Registry of installed sources · system primitives, companion apps, external services. Each integration groups a set of tools agents can use. Companion installers upsert their integration row at install time; external sources are added by hand.</p>
+  </div>
+
+  <section class="stat-grid stat-grid-4">
+    <article class="stat-card" data-stat="integrations-total">
+      <div class="stat-label">Integrations</div>
+      <div class="stat-value" data-field="integrations-total">-</div>
+      <div class="stat-foot">registered</div>
+    </article>
+    <article class="stat-card" data-stat="integrations-available">
+      <div class="stat-label">Available</div>
+      <div class="stat-value" data-field="integrations-available">-</div>
+      <div class="stat-foot">companion installed and running</div>
+    </article>
+    <article class="stat-card" data-stat="integrations-broken">
+      <div class="stat-label">Broken</div>
+      <div class="stat-value" data-field="integrations-broken">-</div>
+      <div class="stat-foot">companion missing or a unit down</div>
+    </article>
+    <article class="stat-card" data-stat="integrations-tools">
+      <div class="stat-label">Helper tools</div>
+      <div class="stat-value" data-field="integrations-tools">-</div>
+      <div class="stat-foot">shell, cli, builtin, api</div>
+    </article>
+  </section>
+
+  <section class="tools-toolbar">
+    <div class="section-label">registered integrations</div>
+    <div class="tools-toolbar-actions">
+      <label class="filter-inline">
+        <span>Status</span>
+        <select id="filterIntegrationStatus">
+          <option value="">all</option>
+          <option value="available">available</option>
+          <option value="broken">broken</option>
+          <option value="registered">registered</option>
+        </select>
+      </label>
+    </div>
+  </section>
+
+  <section class="tools-table-wrap">
+    <div class="table-wrap">
+      <table class="events-table tools-table" id="integrationsTable">
+        <thead>
+          <tr>
+            <th class="col-name">ID</th>
+            <th class="col-title">Purpose</th>
+            <th class="col-title">Path</th>
+            <th class="col-kind">Kind</th>
+            <th class="col-status">Status</th>
+            <th class="col-title">MCP server</th>
+            <th class="col-kind" title="the node's own tools from the catalog (shell, cli, builtin, api); MCP methods are not counted">Helper tools</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="integrationsBody">
+          <tr class="empty-row"><td colspan="8"><span class="sn-spinner" aria-hidden="true"></span>Loading</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="page-meta">
+    <span class="meta-dot" id="liveDot"></span>
+    <span class="meta-text">Last fetch <span id="lastRefresh">-</span></span>
+  </div>
+</main>
+
+<!-- Integration modal (create + edit) -->
+<div class="modal-scrim" id="integrationModalScrim" hidden>
+  <div class="modal-panel" role="dialog" aria-labelledby="integrationModalTitle">
+    <header class="modal-head">
+      <h2 id="integrationModalTitle">New integration</h2>
+      <button type="button" class="modal-close" id="integrationModalClose" aria-label="Close">×</button>
+    </header>
+    <form id="integrationForm" class="modal-form" autocomplete="off">
+      <input type="hidden" name="original_slug" value="">
+      <p class="form-note" id="integrationCompanionNote" hidden>This integration is managed by a companion installer. Only status is editable here; everything else syncs from the installer on re-run.</p>
+      <div class="form-row">
+        <label for="integrationSlug">Slug <small>required · lowercase, digits, dashes</small></label>
+        <input type="text" id="integrationSlug" name="slug" pattern="[a-z][a-z0-9\-]{1,40}" minlength="2" maxlength="41" required>
+      </div>
+      <div class="form-row form-row-split">
+        <div>
+          <label for="integrationKind">Kind <small>required</small></label>
+          <select id="integrationKind" name="kind" required>
+            <option value="app">app</option>
+            <option value="external">external</option>
+            <option value="mcp-only">mcp-only</option>
+            <option value="system">system</option>
+          </select>
+        </div>
+        <div>
+          <label for="integrationStatus">Status</label>
+          <select id="integrationStatus" name="status">
+            <option value="available">available</option>
+            <option value="not-installed">not-installed</option>
+            <option value="broken">broken</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row form-row-split">
+        <div>
+          <label for="integrationLabel">Label <small>required · short brand name</small></label>
+          <input type="text" id="integrationLabel" name="label" maxlength="120" required>
+        </div>
+        <div>
+          <label for="integrationPurpose">Purpose <small>role (Memory, Documents, Tasks, ...)</small></label>
+          <input type="text" id="integrationPurpose" name="purpose" maxlength="60">
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="integrationDesc">Description</label>
+        <textarea id="integrationDesc" name="description" rows="3"></textarea>
+      </div>
+      <div class="form-row form-row-split">
+        <div>
+          <label for="integrationInstallUri">Install URI <small>landing URL / endpoint</small></label>
+          <input type="text" id="integrationInstallUri" name="install_uri">
+        </div>
+        <div>
+          <label for="integrationInstallPath">Install path <small>local dir, e.g. /opt/smart-node/X</small></label>
+          <input type="text" id="integrationInstallPath" name="install_path">
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="integrationCompanionSlug">Companion slug <small>filled by the installer; leave blank for external integrations</small></label>
+        <input type="text" id="integrationCompanionSlug" name="companion_slug" maxlength="80">
+      </div>
+      <div class="modal-foot">
+        <span class="form-error" id="integrationFormError"></span>
+        <div class="modal-foot-actions">
+          <button type="button" class="btn-ghost" id="integrationModalCancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="integrationSubmit">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.3</span>
+</footer>
+
+<script src="/assets/shell.js?v=20261107-2"></script>
+</body>
+</html>

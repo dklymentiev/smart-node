@@ -1,0 +1,12 @@
+{
+  "name": "core-api",
+  "title": "Core API",
+  "provides": "the node's controller: agents, grants, people, messages",
+  "core": true,
+  "requires": [],
+  "works_without": {
+    "memory": "agents get no long-term memory tools"
+  },
+  "sidecars": "core-api srv-skeleton node-ops integrations/gdrive-mcp:gdrive-mcp companions/tools:tools _shared",
+  "icon": "plug"
+}

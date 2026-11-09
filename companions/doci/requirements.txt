@@ -1,0 +1,4 @@
+# MCP server runtime dependencies (mcp_server.py).
+# Pinned to known-good major versions; bump deliberately.
+mcp>=1.0.0,<2
+httpx>=0.27.0,<1

@@ -1,0 +1,113 @@
+schema_version: "3.3.0"
+name: content-simple
+team: team-task
+description: "SAMPLE, copy it and put your agents' names in. One material, one approval, one publication, run by real node agents: the writer writes the material, the owner approves it, the publisher publishes it once. The flow only guarantees the order of hand-offs, the logic between them and the task's status and assignee; every piece of work is done by an agent in its own session, woken because the engine assigned it the task."
+max_parallel: 1
+metadata:
+  version: "1.1.0"
+  author: "smart-node"
+  sample: true
+
+provider:
+  name: gateway
+  model: sonnet
+  max_tokens: 4000
+  temperature: 0.3
+
+inputs:
+  topic:
+    required: true
+    description: "Task reference, format: Task #ID: title"
+
+# THIS FLOW IS A SAMPLE. The assignees below (writer, publisher, owner) are
+# placeholders, not agents: no node has agents with these names. To use the
+# flow, copy it under your own name and write your agents' names here, and the
+# owner's handle instead of `owner`, and remove `sample: true` above. The linter
+# then checks that every name is an agent on your node. The writer and the
+# publisher may be the same agent.
+#
+# The engine writes these, once per block run, from the block's verdict. A
+# block that hands work to an agent reports WAITING first: that assigns the
+# agent (which wakes it). When the agent answers, the same block reports the
+# agent's verdict and the next line applies.
+# Every hand-off writes the status together with the assignee: an agent is told
+# not to touch the status of a workflow task, and if one does anyway, the next
+# hand-off puts the task back where the flow has it.
+# A block that fails puts the task in front of a person (logic/on_error.py).
+on_error: logic/on_error.py
+
+planner:
+  on_block:
+    draft:
+      waiting:  {assignee: writer, status: in_progress}
+      _default: {assignee: owner}
+    gate:
+      skipped:  {}
+      _default: {}
+    publish:
+      waiting:  {assignee: publisher, status: in_progress}
+      skipped:  {}
+      _default: {assignee: owner, status: queued, wait_reason: review}
+    rejected:
+      skipped:  {}
+      _default: {assignee: owner, status: queued, wait_reason: review}
+    stopped:
+      skipped:  {}
+      _default: {assignee: owner, status: queued, wait_reason: review}
+
+blocks:
+  - name: draft
+    depends_on: []
+    max_runs: 8
+    logic:
+      custom: logic/delegate.py
+      post: logic/planner_effect.py
+    routing:
+      waiting: draft
+      fail: stopped
+      _default: gate
+
+  - name: gate
+    depends_on: [draft]
+    max_runs: 10
+    logic:
+      custom: logic/branch.py
+    routing:
+      skipped: _stop
+      blocked: gate
+      revise: draft
+      reject: rejected
+      approved: publish
+      _default: stopped
+
+  - name: publish
+    depends_on: [gate]
+    max_runs: 4
+    logic:
+      custom: logic/branch.py
+      post: logic/planner_effect.py
+    routing:
+      waiting: publish
+      skipped: _stop
+      fail: stopped
+      _default: _stop
+
+  # The two other ends. Each is its own branch and stops the flow itself: there is
+  # no empty final block, because Rein runs only blocks that do something.
+  - name: rejected
+    depends_on: [gate]
+    max_runs: 4
+    logic:
+      custom: logic/branch.py
+      post: logic/planner_effect.py
+    routing:
+      _default: _stop
+
+  - name: stopped
+    depends_on: [publish]
+    max_runs: 4
+    logic:
+      custom: logic/branch.py
+      post: logic/planner_effect.py
+    routing:
+      _default: _stop

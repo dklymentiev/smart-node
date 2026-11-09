@@ -1,0 +1,60 @@
+# Mesh Tag Schema Configuration
+# Defines tag prefixes, defaults, and auto-inference rules.
+# Custom tags (any prefix:value) are always allowed.
+
+schema:
+  project:
+    prefix: "guid:"
+    description: "Project identifier"
+    is_project: true
+    auto_infer: true
+
+  type:
+    prefix: "type:"
+    description: "Document type"
+    values: [worklog, note, artifact, decision, research, idea, roadmap, inbox, readme, doc]
+    default: "note"
+    auto_infer: true
+
+  status:
+    prefix: "status:"
+    description: "Document status"
+    values: [draft, active, completed, archived]
+
+  date:
+    prefix: "date:"
+    description: "Document date (YYYY-MM-DD)"
+
+  source:
+    prefix: "source:"
+    description: "Origin of the document"
+    values: [api, cli, mcp, voice, chat, web, doci, sync]
+
+  topic:
+    prefix: "topic:"
+    description: "Subject topic"
+    auto_infer: true
+
+  agent:
+    prefix: "agent:"
+    description: "AI agent that created the document"
+
+  ai-category:
+    prefix: "ai-category:"
+    description: "AI-assigned document category"
+    auto_infer: false
+
+  ai-subcategory:
+    prefix: "ai-subcategory:"
+    description: "AI-assigned document subcategory"
+    auto_infer: false
+
+defaults:
+  auto_date: true
+  source: "api"
+
+auto_infer:
+  enabled: true
+  neighbors: 7
+  threshold: 0.85
+  min_agreement: 3

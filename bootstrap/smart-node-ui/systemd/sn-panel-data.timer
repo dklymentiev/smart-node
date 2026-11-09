@@ -1,0 +1,11 @@
+[Unit]
+Description=Smart Node panel: data refresh every 30s
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+AccuracySec=2s
+Unit=sn-panel-data.service
+
+[Install]
+WantedBy=timers.target

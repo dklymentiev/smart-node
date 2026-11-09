@@ -1,0 +1,98 @@
+schema_version: "3.3.0"
+name: task-simple
+team: team-task
+description: >
+  Planner-grounded task flow: a developer executes the task, a tester
+  independently verifies (with a REVISE loop back to execute), and a pm delivers
+  the final comment. Every block reads the live planner task and posts its output
+  as a comment. No state is carried in the flow YAML; the planner task IS the record.
+max_parallel: 1
+metadata:
+  version: "2.1.0"
+  author: "smart-node"
+
+provider:
+  name: gateway
+  model: sonnet
+  max_tokens: 2000
+  temperature: 0.3
+
+inputs:
+  task_id:
+    description: >
+      Planner task ID to work on. The flow reads the task and its comments from
+      the node's core-api socket at /run/smart-node/api/core-api.sock and posts
+      each block's output as a comment.
+    required: true
+
+# A block that fails puts the task in front of a person (logic/on_error.py).
+on_error: logic/on_error.py
+
+# How the flow ends is the flow's to say. Both ends hand the task to a person
+# for review, and the person decides whether it is done. logic/planner_effect.py
+# writes this, as a post hook on the two end blocks.
+planner:
+  on_block:
+    done:
+      skipped:  {}
+      _default: {status: queued, wait_reason: review}
+    stopped:
+      skipped:  {}
+      _default: {status: queued, wait_reason: review}
+
+# The first block takes the task (open -> in_progress) and the ends above hand
+# it over. Blocks after a decision start in logic/branch.py, which runs
+# the block's own script only when the decision sent the flow there (README,
+# "Who acts when").
+blocks:
+  - name: execute
+    depends_on: []
+    logic:
+      custom: logic/execute.py
+    routing:
+      fail: stopped
+      _default: verify
+    max_runs: 3
+
+  - name: verify
+    depends_on: [execute]
+    skip_if_previous_failed: true
+    logic:
+      custom: logic/branch.py
+    routing:
+      skipped: _stop
+      approve: deliver
+      revise: execute
+      _default: stopped
+    max_runs: 3
+
+  - name: deliver
+    depends_on: [verify]
+    skip_if_previous_failed: true
+    logic:
+      custom: logic/branch.py
+    routing:
+      skipped: _stop
+      fail: stopped
+      _default: done
+    max_runs: 3
+
+  # The two ends. Each stops the flow itself; there is no empty final block.
+  - name: done
+    depends_on: [deliver]
+    skip_if_previous_failed: true
+    logic:
+      custom: logic/branch.py
+      post: logic/planner_effect.py
+    routing:
+      _default: _stop
+    max_runs: 3
+
+  - name: stopped
+    depends_on: [verify]
+    logic:
+      custom: logic/branch.py
+      post: logic/planner_effect.py
+    routing:
+      _default: _stop
+    max_runs: 3

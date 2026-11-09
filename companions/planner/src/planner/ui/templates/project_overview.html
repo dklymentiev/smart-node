@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_partials/project_header.html" %}
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+  <div class="bg-white border rounded-lg p-4">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">Tasks</div>
+    <div class="mt-1 text-3xl font-semibold">{{ task_total }}</div>
+    <div class="mt-2 text-xs text-slate-500">
+      {{ task_done }} done &middot; {{ task_active }} active &middot; {{ task_open }} open
+    </div>
+    {% if task_total %}
+    <div class="mt-3 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+      <div class="h-full bg-slate-700" style="width: {{ task_pct }}%"></div>
+    </div>
+    <div class="mt-1 text-xs font-mono text-slate-500">{{ task_pct }}% done</div>
+    {% endif %}
+  </div>
+
+  <div class="bg-white border rounded-lg p-4">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">Objectives</div>
+    <div class="mt-1 text-3xl font-semibold">{{ objective_total }}</div>
+    <div class="mt-2 text-xs text-slate-500">across the strategy hierarchy</div>
+  </div>
+
+  <div class="bg-white border rounded-lg p-4">
+    <div class="text-xs text-slate-500 uppercase tracking-wider">Status</div>
+    <div class="mt-1 text-3xl font-semibold capitalize">{{ project.status }}</div>
+    <div class="mt-2 text-xs text-slate-500">created {{ project.created_at|age }} ago</div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <a href="/ui/projects/{{ project.slug }}/board"
+     class="block bg-white border rounded-lg p-5 hover:shadow-sm">
+    <div class="text-sm font-semibold mb-1">Board &rarr;</div>
+    <div class="text-xs text-slate-500">Kanban view of every task by pipeline stage. Polls every 5 seconds.</div>
+  </a>
+
+  <a href="/ui/projects/{{ project.slug }}/objectives"
+     class="block bg-white border rounded-lg p-5 hover:shadow-sm">
+    <div class="text-sm font-semibold mb-1">Objectives &rarr;</div>
+    <div class="text-xs text-slate-500">Strategy / roadmap / milestone hierarchy with progress rollup per branch.</div>
+  </a>
+</div>
+
+{% if recent_tasks %}
+<section class="mt-8">
+  <h2 class="text-sm font-semibold tracking-tight mb-3">Recent tasks</h2>
+  <div class="bg-white border rounded-lg divide-y">
+    {% for t in recent_tasks %}
+    <a href="/ui/tasks/{{ t.id }}"
+       class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
+      <span class="font-mono text-xs text-slate-400 w-12">#{{ t.id }}</span>
+      <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 w-32 text-center">{{ t.status }}</span>
+      <span class="flex-1 text-sm truncate">{{ t.title }}</span>
+      <span class="text-xs text-slate-400 w-12 text-right">{{ t.updated_at|age }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

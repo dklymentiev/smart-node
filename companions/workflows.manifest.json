@@ -1,0 +1,11 @@
+{
+  "name": "workflows",
+  "title": "Workflows",
+  "provides": "scheduled and multi-step flows",
+  "requires": [],
+  "works_without": {
+    "core-api": "the flow catalog stays empty until core-api is installed and Workflows is run again"
+  },
+  "sidecars": "rein workflows-secretary.sh flows _shared companions/hitl:hitl",
+  "icon": "workflow"
+}

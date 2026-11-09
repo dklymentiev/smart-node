@@ -1,0 +1,16 @@
+# Sysadmin operational tooling through one validated wrapper.
+#
+# Members of grp-role-sysadmin may invoke /usr/local/sbin/sn-op as root. The
+# wrapper validates arguments, confines paths to /work, checks approvals for
+# Tier B verbs, records each call, and then executes the permitted binary.
+# Granting the role group keeps this policy valid when sysadmin accounts are
+# renamed or added. The operator's broader grant lives in a separate file.
+#
+# Direct command aliases allowed path traversal and argument splitting under
+# sudoers glob matching. B01-core.sh replaces them with SN_OP and removes the
+# old broad grant at /etc/sudoers.d/smart-node-sysadmin in the same pass.
+# Installed at /etc/sudoers.d/agent-max, 0440 root:root, gated by `visudo -c`.
+
+Cmnd_Alias SN_OP = /usr/local/sbin/sn-op
+
+%grp-role-sysadmin ALL=(root) NOPASSWD: SN_OP

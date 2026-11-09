@@ -1,0 +1,26 @@
+# Brin tool configuration
+# Hot-reloaded on file change (mtime check)
+
+tools:
+  memory:
+    enabled: true
+    mode: "off"
+    min_score: 0.3       # minimum similarity score to include
+    limit: 5             # max documents to fetch
+    max_context_length: 500  # max chars per document in context
+    timeout: 5           # search timeout in seconds
+    exclude_types:       # types to exclude from auto-inject results
+      - inbox
+      - media
+      - short-term-memory
+      - session-memory
+
+  stm:
+    enabled: true
+    max_facts: 50        # max facts per session document
+
+# v2 agent configuration
+v2:
+  max_tool_rounds: 10     # max tool-use loop iterations
+  session_ttl: 3600       # gateway session TTL in seconds
+  default_model: sonnet   # default LLM model

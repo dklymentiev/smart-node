@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="mb-6 flex items-baseline justify-between">
+  <h1 class="text-2xl font-semibold tracking-tight">API keys</h1>
+  <a href="/docs#/api-keys" class="text-sm text-slate-500 hover:text-slate-900">REST docs &rarr;</a>
+</section>
+
+{% if error %}
+<div class="mb-4 rounded bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700">
+  {{ error }}
+</div>
+{% endif %}
+
+{% if new_key %}
+<div class="mb-6 rounded bg-emerald-50 border border-emerald-200 px-4 py-3">
+  <p class="text-sm text-emerald-800 font-semibold mb-1">
+    Created key &quot;{{ new_key.label }}&quot;
+  </p>
+  <p class="text-xs text-emerald-700 mb-2">
+    Copy this now -- it will not be shown again.
+  </p>
+  <pre class="bg-white border border-emerald-200 rounded px-2 py-1 text-xs overflow-x-auto">{{ new_key.plaintext }}</pre>
+</div>
+{% endif %}
+
+<section class="bg-white border rounded-lg overflow-hidden mb-6">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+      <tr>
+        <th class="text-left px-4 py-2">Label</th>
+        <th class="text-left px-4 py-2">Actor</th>
+        <th class="text-left px-4 py-2">Created</th>
+        <th class="text-left px-4 py-2">Last used</th>
+        <th class="text-left px-4 py-2">Status</th>
+        <th class="text-right px-4 py-2"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y">
+      {% for k in keys %}
+      <tr>
+        <td class="px-4 py-2 font-medium">{{ k.label }}</td>
+        <td class="px-4 py-2 font-mono text-xs">{{ k.actor_id }}</td>
+        <td class="px-4 py-2 text-xs text-slate-500">{{ k.created_at.strftime("%Y-%m-%d") }}</td>
+        <td class="px-4 py-2 text-xs text-slate-500">
+          {% if k.last_used_at %}{{ k.last_used_at.strftime("%Y-%m-%d %H:%M") }}{% else %}-{% endif %}
+        </td>
+        <td class="px-4 py-2 text-xs">
+          {% if k.revoked_at %}
+          <span class="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">revoked</span>
+          {% else %}
+          <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">active</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2 text-right">
+          {% if not k.revoked_at %}
+          <form method="post" action="/ui/keys/{{ k.id }}/revoke" class="m-0 inline">
+            <button class="text-xs text-rose-600 hover:underline"
+                    onclick="return confirm('Revoke key &quot;{{ k.label }}&quot;?')">Revoke</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400 italic">No keys yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="bg-white border rounded-lg p-4">
+  <h2 class="text-sm font-semibold mb-3">Create a new key</h2>
+  <form method="post" action="/ui/keys/create" class="flex flex-wrap gap-2 items-end">
+    <div class="flex-1 min-w-[180px]">
+      <label class="block text-xs text-slate-500 mb-1" for="label">Label</label>
+      <input id="label" name="label" type="text" required maxlength="80"
+             class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+    </div>
+    <div class="flex-1 min-w-[180px]">
+      <label class="block text-xs text-slate-500 mb-1" for="actor_id">Actor</label>
+      <select id="actor_id" name="actor_id" required
+              class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+        {% for a in actors %}
+        <option value="{{ a.id }}">{{ a.id }} ({{ a.type }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="text-sm px-3 py-1.5 rounded bg-slate-900 text-white hover:bg-slate-800">Create</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Alex</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#0a0a0c;color:#f2f2f0;font-family:-apple-system,'Segoe UI',sans-serif}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px}
+#orb{width:170px;height:170px;border-radius:50%;border:none;cursor:pointer;
+  background:radial-gradient(circle at 35% 30%,#3a7bd5,#1b3a6b);box-shadow:0 0 0 0 rgba(58,123,213,.5);
+  transition:transform .15s, box-shadow .3s;color:#fff;font-size:17px;font-weight:600}
+#orb.live{animation:pulse 1.6s infinite;background:radial-gradient(circle at 35% 30%,#2a9d8f,#1b6b5a)}
+#orb:active{transform:scale(.96)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(42,157,143,.45)}70%{box-shadow:0 0 0 26px rgba(42,157,143,0)}100%{box-shadow:0 0 0 0 rgba(42,157,143,0)}}
+#status{font-size:13px;color:#83838d;font-family:ui-monospace,monospace;letter-spacing:.04em;min-height:18px}
+#log{width:100%;max-width:560px;flex:0 1 auto;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px}
+.b{padding:9px 13px;border-radius:13px;font-size:15px;line-height:1.4;max-width:85%}
+.u{align-self:flex-end;background:#26324a;color:#dbe4f5}
+.a{align-self:flex-start;background:#16171d;border:1px solid rgba(255,255,255,.07)}
+.hint{font-size:11px;color:#54545d;font-family:ui-monospace,monospace}
+</style>
+</head>
+<body>
+<div id="log"></div>
+<button id="orb">Tap to talk</button>
+<div id="status">tap the circle and speak</div>
+<div class="hint">Alex &middot; brin brain &middot; mode B</div>
+<script>
+var orb=document.getElementById('orb'),statusEl=document.getElementById('status'),logEl=document.getElementById('log');
+var ws=null,recog=null,listening=false,audioCtx=null,speaking=false;
+var ttsQueue=[],ttsPlaying=false;
+
+function getUid(){var u=localStorage.getItem('voice_uid');if(!u){u=(crypto.randomUUID?crypto.randomUUID():String(Date.now()));localStorage.setItem('voice_uid',u);}return u;}
+function setStatus(t){statusEl.textContent=t;}
+function bubble(cls,text){var d=document.createElement('div');d.className='b '+cls;d.textContent=text;logEl.appendChild(d);logEl.scrollTop=logEl.scrollHeight;return d;}
+
+/* ---- play PCM (base64, signed 16-bit LE, mono) ---- */
+/* queue TTS clips and play them strictly one at a time, so two answers never
+   overlap. speaking stays true for the whole queue (half-duplex: we don't hear
+   ourselves), recognition resumes only when the queue is fully drained. */
+function enqueueTTS(b64,rate){ttsQueue.push({b64:b64,rate:rate||24000});pumpTTS();}
+function pumpTTS(){
+  if(ttsPlaying||ttsQueue.length===0)return;
+  var item=ttsQueue.shift();
+  ttsPlaying=true;speaking=true;
+  if(recog){try{recog.abort();}catch(e){}}
+  try{
+    if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    var bin=atob(item.b64),n=bin.length,buf=new ArrayBuffer(n),v=new Uint8Array(buf);
+    for(var i=0;i<n;i++)v[i]=bin.charCodeAt(i);
+    var pcm=new Int16Array(buf),f=new Float32Array(pcm.length);
+    for(var j=0;j<pcm.length;j++)f[j]=pcm[j]/32768;
+    var ab=audioCtx.createBuffer(1,f.length,item.rate);
+    ab.getChannelData(0).set(f);
+    var src=audioCtx.createBufferSource();src.buffer=ab;src.connect(audioCtx.destination);
+    src.onended=function(){
+      ttsPlaying=false;
+      if(ttsQueue.length>0){pumpTTS();}
+      else{setTimeout(function(){speaking=false;if(listening&&recog){try{recog.start();}catch(e){}}},350);}
+    };
+    src.start();
+  }catch(e){ttsPlaying=false;speaking=false;console.error('tts',e);}
+}
+
+/* ---- WebSocket to the brin brain ---- */
+function connect(){
+  var proto=location.protocol==='https:'?'wss:':'ws:';
+  ws=new WebSocket(proto+'//'+location.host+'/ws-brain');
+  ws.onopen=function(){ws.send(JSON.stringify({type:'init',uid:getUid()}));setStatus('listening...');};
+  ws.onmessage=function(e){
+    var m=JSON.parse(e.data);
+    if(m.type==='tts_audio')enqueueTTS(m.audio,m.rate);
+    else if(m.type==='transcript_out')bubble('a',m.text);
+    else if(m.type==='thinking')setStatus('Alex is checking...');
+    else if(m.type==='status'&&m.text==='ready')setStatus('listening...');
+  };
+  ws.onclose=function(){if(listening)setStatus('reconnecting...');};
+}
+function sendText(t){bubble('u',t);setStatus('Alex is checking...');if(ws&&ws.readyState===1)ws.send(JSON.stringify({type:'user_text',text:t}));}
+
+/* ---- browser speech recognition (ASR) ---- */
+function startRecog(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){setStatus('this browser has no speech recognition (use Chrome)');return;}
+  recog=new SR();recog.lang=(navigator.language||'en-US');recog.continuous=true;recog.interimResults=true;
+  recog.onresult=function(e){
+    if(speaking)return; /* ignore anything captured while Alex is talking */
+    for(var i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal){var t=e.results[i][0].transcript.trim();if(t)sendText(t);}
+    }
+  };
+  recog.onerror=function(ev){if(ev.error==='not-allowed')setStatus('microphone blocked');};
+  recog.onend=function(){if(listening&&!speaking){try{recog.start();}catch(e){}}};
+  try{recog.start();}catch(e){}
+}
+
+function startAll(){
+  listening=true;orb.classList.add('live');orb.textContent='Listening';
+  if(!audioCtx){audioCtx=new (window.AudioContext||window.webkitAudioContext)();}
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  connect();startRecog();
+}
+function stopAll(){
+  listening=false;orb.classList.remove('live');orb.textContent='Tap to talk';
+  setStatus('stopped');
+  if(recog){try{recog.stop();}catch(e){}recog=null;}
+  if(ws){try{ws.close();}catch(e){}ws=null;}
+}
+orb.addEventListener('click',function(){if(listening)stopAll();else startAll();});
+</script>
+</body>
+</html>

@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install Smart Node</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<script src="/vendor/lucide.min.js"></script>
+<style>
+@layer app {
+  body{ display:flex; flex-direction:column; align-items:center; padding:var(--sn-sp-8) var(--sn-sp-4) }
+  .brand{ display:flex; align-items:center; gap:10px; font:600 14px var(--sn-font); color:var(--sn-ink);
+    width:100%; max-width:var(--sn-content-max); margin-bottom:var(--sn-sp-6) }
+  .brand svg{ width:22px; height:22px; fill:var(--sn-ink) }
+  #mode{ width:100%; padding:4px; border-radius:var(--sn-r-lg) }
+  .pane{ display:none; width:100%; max-width:560px; flex-direction:column; gap:var(--sn-sp-6) }
+  .pane.is-on{ display:flex; animation:rise var(--sn-t-mid) var(--sn-ease-out) both }
+  @keyframes rise{ from{ opacity:0; transform:translateY(8px) } }
+  h1{ font:600 30px/1.15 var(--sn-font); color:var(--sn-ink); letter-spacing:-.02em }
+  .lead{ color:var(--sn-ink-mute); font-size:15px; margin-top:6px }
+  /* the ways side by side, as cards, so the whole choice fits on one screen */
+  .ways{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:var(--sn-sp-3) }
+  .ways button{ display:flex; align-items:center; gap:var(--sn-sp-3); padding:14px 16px; border:1px solid var(--sn-rule);
+    background:transparent; border-radius:var(--sn-r-lg); text-align:left; cursor:pointer; color:var(--sn-ink) }
+  .ways button:hover{ background:var(--sn-bg-2) }
+  .ways button.is-on{ background:var(--sn-surface); box-shadow:var(--sn-shadow-s) }
+  .ways b{ display:block; font:500 14.5px var(--sn-font) } .ways small{ font-size:12.5px; color:var(--sn-ink-mute) }
+  .ways .radio{ width:16px; height:16px; border-radius:var(--sn-r-pill); border:1.5px solid var(--sn-ink-faint); flex:0 0 auto }
+  .ways .is-on .radio{ border:5px solid var(--sn-ink) }
+  .ways button.is-on{ border-color:var(--sn-ink-faint) }
+  .base summary{ cursor:pointer; font:500 12.5px var(--sn-font); color:var(--sn-ink-mute); list-style:none }
+  .base summary::-webkit-details-marker{ display:none }
+  .base summary b{ font-weight:500; color:var(--sn-ink-2); border-bottom:1px dotted var(--sn-ink-faint) }
+  .base .sn-apps{ margin-top:var(--sn-sp-3) }
+  .row{ display:flex; justify-content:space-between; align-items:center; gap:var(--sn-sp-3) }
+  .msg{ font-size:13.5px; min-height:20px; color:var(--sn-ink-mute) }
+  .msg.is-err{ color:var(--sn-danger) }
+  .list{ display:flex; flex-direction:column; gap:2px }
+  .list div{ display:flex; align-items:center; gap:var(--sn-sp-3); padding:7px 4px; font-size:14px; color:var(--sn-ink-faint) }
+  .list .done, .list .now{ color:var(--sn-ink) } .list .failed{ color:var(--sn-ink) }
+  .list em{ font-style:normal; margin-left:auto; font:400 12.5px var(--sn-mono); color:var(--sn-ink-mute) }
+  .mark{ width:16px; height:16px; display:grid; place-items:center; flex:0 0 auto }
+  .mark svg{ width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round }
+  .wait .mark::before{ content:""; width:6px; height:6px; border-radius:var(--sn-r-pill); background:var(--sn-rule) }
+  .bar{ height:6px } .bar > i{ transition:width var(--sn-t-mid) var(--sn-ease-out) }
+  /* the modules a person may leave out */
+  .mods{ display:flex; flex-direction:column; gap:2px }
+  .mods .label{ font:500 12.5px var(--sn-font); color:var(--sn-ink-mute); margin-bottom:var(--sn-sp-2) }
+  .pane[data-p="ask"]{ max-width:var(--sn-content-max); gap:var(--sn-sp-5) }
+  .mods .sn-apps{ grid-template-columns:repeat(auto-fill, minmax(116px, 1fr)) }
+  .mods .label{ margin-top:var(--sn-sp-4) } .mods .label small{ color:var(--sn-ink-faint); font-weight:400 }
+  .list .ic svg{ width:16px; height:16px; stroke-width:1.8; color:var(--sn-ink-mute) }
+  /* running: the steps on the left, what the installer prints on the right, full height */
+  .pane[data-p="run"]{ max-width:var(--sn-content-max) }
+  .run{ display:grid; grid-template-columns:300px minmax(0,1fr); gap:var(--sn-sp-8); align-items:start }
+  .side{ display:flex; flex-direction:column; gap:var(--sn-sp-4) }
+  pre{ margin:0; padding:var(--sn-sp-4); background:var(--sn-inset); border-radius:var(--sn-r-md); height:calc(100vh - 260px);
+    min-height:320px; font:400 11.5px/1.55 var(--sn-mono); color:var(--sn-ink-mute); white-space:pre-wrap; word-break:break-all; overflow:auto }
+  @media (max-width:860px){ .run{ grid-template-columns:1fr } pre{ height:320px } }
+}
+</style>
+</head>
+<body>
+<div class="brand"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="1" y="1" width="10" height="10"/><rect x="9" y="9" width="10" height="10"/></svg>Smart Node</div>
+
+<section class="pane is-on" data-p="ask">
+  <div><h1>How will your AI work?</h1><p class="lead">The node installs what that needs. You can add another way later.</p></div>
+  <div class="ways" id="ways"></div>
+  <div class="mods">
+    <div class="label">What to install</div>
+    <div class="sn-seg sn-seg--slide" id="mode" style="--n:3"><span class="sn-seg__thumb"></span>
+      <button data-m="simple">Simple</button><button data-m="full" class="is-on">Full</button><button data-m="custom">Custom</button></div>
+    <div class="label">Modules <small>tap to add or leave out</small></div>
+    <div class="sn-apps" id="mods"></div>
+    <details class="base"><summary>And <b id="baseCount">the base</b>, always installed</summary><div class="sn-apps" id="base"></div></details>
+  </div>
+  <div class="row"><div class="msg" id="askMsg">Pick how your AI will work.</div><button class="sn-btn sn-btn--primary" id="go" disabled>Install</button></div>
+</section>
+
+<section class="pane" data-p="run">
+  <div class="row"><div><h1 id="runTitle">Installing Smart Node</h1><p class="lead" id="runLead">This takes a few minutes. You can leave this page open.</p></div>
+    <div><button class="sn-btn sn-btn--ghost" id="stop" hidden>Stop the install</button>
+      <a class="sn-btn sn-btn--primary" id="open" hidden>Open Studio</a></div></div>
+  <div class="run">
+    <div class="side">
+      <div class="sn-bar bar"><i id="bar" style="width:0%"></i></div>
+      <div class="list" id="list"></div>
+      <div class="msg" id="runMsg"></div>
+    </div>
+    <pre id="tail" aria-label="What the installer is doing"></pre>
+  </div>
+</section>
+
+<script>
+(function () {
+  const $ = (s) => document.querySelector(s);
+  const t = new URLSearchParams(location.search).get('t') || '';
+  const api = (p, o = {}) => fetch(p + (p.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(t), o);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme = 'dark';
+  const show = (p) => document.querySelectorAll('.pane').forEach((x) => x.classList.toggle('is-on', x.dataset.p === p));
+  const CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const CROSS = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  let way = '', mode = 'full', mods = [], picked = new Set();
+
+  async function ask() {
+    const r = await api('/api/ways');
+    if (r.status === 403) return ($('#askMsg').textContent = 'Open the address the installer printed: it carries the key to this page.');
+    const list = await r.json();
+    waysList = list;
+    $('#ways').innerHTML = list.map((w) => `<button data-id="${esc(w.id)}"><span class="radio"></span>
+      <span><b>${esc(w.title)}</b><small>${esc(w.note)}</small></span></button>`).join('');
+    mods = await (await api('/api/modules')).json();
+    baseTitles = await (await api('/api/base')).json();
+    picked = new Set(mods.map((m) => m.id));
+    setMode('full');
+  }
+  // The list is always shown: the base (always installed) and a switch per module. Simple
+  // turns every module off, Full every one on; touching a switch makes it Custom.
+  // What a module needs stays on while it is on, with the reason (from the manifests).
+  let baseTitles = [], waysList = [];
+  const MODES = ['simple', 'full', 'custom'];
+  function needed() {
+    const need = {};
+    let grew = true;
+    const on = new Set(picked);
+    while (grew) {
+      grew = false;
+      mods.forEach((m) => { if (on.has(m.id)) m.requires.forEach((r) => {
+        if (mods.some((x) => x.id === r) && !on.has(r)) { on.add(r); grew = true; }
+        if (mods.some((x) => x.id === r)) (need[r] = need[r] || []).push(m.title);
+      }); });
+    }
+    return { on, need };
+  }
+  function drawMods() {
+    const { on, need } = needed();
+    const tile = (cls, icon, name, attrs = '', note = '') => `<button type="button" class="sn-app sn-app--${cls}" ${attrs}>
+        <span class="sn-app__ico"><i data-lucide="${esc(icon)}"></i></span><span class="sn-app__dot"></span>
+        <span class="sn-app__name">${esc(name)}</span>${note ? `<span class="sn-app__note">${esc(note)}</span>` : ''}</button>`;
+    $('#baseCount').textContent = `${baseTitles.length} parts`;
+    $('#base').innerHTML = baseTitles.map((b) => tile('fixed', b.icon, b.title, 'disabled title="Always installed"')).join('');
+    // what runs the AI comes with the way chosen above: shown first, fixed
+    const rt = (waysList.find((w) => w.id === way) || {}).runtime;
+    $('#mods').innerHTML = (rt ? tile('chosen sn-app--fixed', rt.icon, rt.title, 'disabled title="Runs your AI; comes with the way you chose"', 'your AI') : '')
+      + mods.map((m) => {
+      const forced = !picked.has(m.id) && on.has(m.id);
+      const why = forced ? `Needed by ${need[m.id].join(', ')}` : m.provides;
+      return tile(on.has(m.id) ? 'chosen' : 'off', m.icon, m.title,
+        `data-id="${esc(m.id)}" title="${esc(why)}" aria-pressed="${on.has(m.id)}" ${forced ? 'disabled' : ''}`, forced ? 'needed' : '');
+    }).join('');
+    if (window.lucide) lucide.createIcons();
+  }
+  function markMode(m) {
+    mode = m;
+    document.querySelectorAll('#mode button').forEach((b) => b.classList.toggle('is-on', b.dataset.m === m));
+    $('#mode').style.setProperty('--i', MODES.indexOf(m));
+  }
+  function setMode(m) {
+    markMode(m);
+    if (m === 'simple') picked = new Set();
+    if (m === 'full') picked = new Set(mods.map((x) => x.id));
+    drawMods();
+  }
+  $('#mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); });
+  $('#mods').addEventListener('click', (e) => {
+    const i = e.target.closest('button[data-id]:not([disabled])'); if (!i) return;
+    if (picked.has(i.dataset.id)) picked.delete(i.dataset.id); else picked.add(i.dataset.id);
+    // the switches say which mode it is: none on is Simple, all on is Full, else Custom
+    const on = needed().on.size;
+    markMode(on === 0 ? 'simple' : on === mods.length ? 'full' : 'custom');
+    drawMods();
+  });
+  $('#ways').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    way = b.dataset.id;
+    document.querySelectorAll('#ways button').forEach((x) => x.classList.toggle('is-on', x === b));
+    $('#go').disabled = false;
+    $('#askMsg').textContent = '';
+    drawMods();
+  });
+  $('#go').addEventListener('click', async () => {
+    $('#go').disabled = true;
+    const r = await api('/api/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ way, modules: [...needed().on] }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok && !/already started/.test(d.detail || '')) { $('#go').disabled = false; return ($('#askMsg').textContent = d.detail || `HTTP ${r.status}`); }
+    show('run'); poll();
+  });
+
+  const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  async function poll() {
+    let d;
+    try { d = await (await api('/api/progress')).json(); } catch { return setTimeout(poll, 2000); }
+    if (d.state === 'idle') { show('ask'); return; }
+    show('run');
+    const done = d.steps.filter((s) => s.status === 'done').length;
+    $('#bar').style.width = `${d.steps.length ? Math.round((done / d.steps.length) * 100) : 0}%`;
+    $('#list').innerHTML = d.steps.map((s) => `<div class="${s.status}"><span class="mark">${
+      s.status === 'done' ? CHECK : s.status === 'failed' ? CROSS : s.status === 'now' ? '<span class="sn-dot sn-dot--work"></span>' : ''
+    }</span><span class="ic"><i data-lucide="${esc(s.icon)}"></i></span>${esc(s.title)}${s.status === 'now' ? `<em>${mmss(d.elapsed)}</em>` : ''}</div>`).join('');
+    if (window.lucide) lucide.createIcons();
+    const tail = $('#tail'); const atEnd = tail.scrollTop + tail.clientHeight >= tail.scrollHeight - 4;
+    tail.textContent = d.tail.join('\n'); if (atEnd) tail.scrollTop = tail.scrollHeight;
+    $('#stop').hidden = d.state !== 'running';
+    if (d.state === 'running') return setTimeout(poll, 1500);
+    if (d.state === 'stopped') {
+      $('#runTitle').textContent = 'The install is stopped';
+      $('#runLead').textContent = 'You stopped it. Run the installer again to go on: what is done stays done.';
+      return;
+    }
+    if (d.state === 'done') {
+      $('#runTitle').textContent = 'Smart Node is installed';
+      $('#runLead').textContent = `In ${mmss(d.elapsed)}. Next: Studio, where you sign in to your AI.`;
+      $('#bar').style.width = '100%';
+      if (d.link) { $('#open').href = d.link; $('#open').hidden = false; setTimeout(() => { location.href = d.link; }, 2500); }
+      else $('#runMsg').textContent = 'The first-run link was not written; the installer printed how to get it (on the right).';
+      return;
+    }
+    $('#runTitle').textContent = 'The install stopped';
+    $('#runLead').textContent = 'Nothing is lost: what is installed stays. The log says what stopped it and how to go on.';
+    $('#runMsg').textContent = `The full log: ${d.log}`;
+    $('#runMsg').classList.add('is-err');
+  }
+  $('#stop').addEventListener('click', async () => {
+    $('#stop').disabled = true;
+    $('#stop').textContent = 'Stopping...';
+    await api('/api/stop', { method: 'POST' }).catch(() => null);
+  });
+  ask().then(poll);
+})();
+</script>
+</body>
+</html>

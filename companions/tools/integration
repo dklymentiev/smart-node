@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""integration -- Smart Node integration server provisioner.
+
+Reads sn_config.mcp_servers rows and provisions the server artifacts for
+Pattern A (pip package) integrations. Installed at /usr/local/bin/integration
+by the core-api companion installer.
+
+Usage:
+    integration provision <slug>       provision the MCP server for this slug
+    integration provision --all        provision all autoinstall=true servers
+    integration list                   list all registered MCP servers
+
+Pattern A (pip package) provisioning:
+    The mcp_servers row config must contain:
+        package_name    -- pip package name (e.g. "gdrive-mcp")
+        version_pin     -- version to install (e.g. "0.1.0"); omit for latest
+        package_source  -- local directory path for pip --find-links,
+                           or a pip-compatible URL (https://, git+...),
+                           or omit to install from PyPI
+        install_path    -- (optional) override the root installation directory.
+                           Default is /srv/integrations/<slug>. Set this when
+                           adopting a server that was provisioned manually at a
+                           non-standard path (e.g. /srv/projects/gsheets-mcp).
+                           The venv is always at <install_path>/venv/.
+
+    Installs into /srv/integrations/<slug>/venv/ (one venv per integration)
+    unless install_path overrides it. The venv's bin/<entrypoint> is what
+    mcp_servers.config.command points to.
+
+The provisioner is idempotent: if the correct version is already installed,
+it prints a confirmation and exits 0 without reinstalling.
+"""
+
+import json
+import os
+import subprocess
+import http.client
+import socket
+import sys
+import urllib.error
+import urllib.request
+
+# ──────────────────────────────────────────────────────
+# Core-api endpoint
+# ──────────────────────────────────────────────────────
+
+# core-api is read over its unix socket. This tool installs packages and runs
+# as root, which has no account to name: on the socket the kernel names the
+# caller and core-api admits the node's own root account as the owner. A name
+# typed in a header over TCP is no account and is refused.
+CORE_SOCKET = os.environ.get("SN_CORE_API_SOCKET", "/run/smart-node/api/core-api.sock")
+CORE_API = "http://core-api"
+
+
+class _SocketConnection(http.client.HTTPConnection):
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(CORE_SOCKET)
+
+
+class _SocketHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_SocketConnection, req)
+
+
+_OPENER = urllib.request.build_opener(_SocketHandler)
+INTEGRATIONS_BASE = "/srv/integrations"
+
+
+def _api_get(path: str) -> dict:
+    url = f"{CORE_API}{path}"
+    req = urllib.request.Request(url)
+    try:
+        with _OPENER.open(req, timeout=15) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="replace")
+        print(f"ERROR: API {url} returned {exc.code}: {body[:200]}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:
+        print(f"ERROR: cannot reach core-api on {CORE_SOCKET}: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+# ──────────────────────────────────────────────────────
+# Version check
+# ──────────────────────────────────────────────────────
+
+def _installed_version(pip: str, package_name: str) -> str | None:
+    """Return the installed version string, or None if not installed."""
+    try:
+        result = subprocess.run(
+            [pip, "show", package_name],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            return None
+        for line in result.stdout.splitlines():
+            if line.lower().startswith("version:"):
+                return line.split(":", 1)[1].strip()
+    except FileNotFoundError:
+        pass
+    return None
+
+
+# ──────────────────────────────────────────────────────
+# Provision one server
+# ──────────────────────────────────────────────────────
+
+def _provision(server: dict) -> bool:
+    """Provision one MCP server. Return True on success."""
+    slug    = server["slug"]
+    config  = server.get("config") or {}
+
+    package_name   = config.get("package_name")
+    version_pin    = config.get("version_pin")
+    package_source = config.get("package_source")
+
+    if not package_name:
+        print(f"[provision] {slug}: no package_name in config -- Pattern B or manual install; skipping")
+        return True
+
+    install_dir = config.get("install_path") or os.path.join(INTEGRATIONS_BASE, slug)
+    venv_dir    = os.path.join(install_dir, "venv")
+    pip         = os.path.join(venv_dir, "bin", "pip")
+
+    # Check if already at the right version.
+    if os.path.isfile(pip):
+        installed = _installed_version(pip, package_name)
+        if installed is not None:
+            if not version_pin or installed == version_pin:
+                print(f"[provision] {slug}: {package_name}=={installed} already installed -- ok")
+                return True
+            else:
+                print(f"[provision] {slug}: {package_name} installed at {installed}, need {version_pin} -- upgrading")
+        # pip exists but package not found: fall through to install
+    else:
+        print(f"[provision] {slug}: venv not found -- creating")
+
+    # Create install dir and venv.
+    os.makedirs(install_dir, mode=0o755, exist_ok=True)
+    if not os.path.isfile(pip):
+        print(f"[provision] {slug}: creating venv at {venv_dir}")
+        subprocess.run([sys.executable, "-m", "venv", venv_dir], check=True)
+        subprocess.run([pip, "install", "--upgrade", "pip", "--quiet"], check=True)
+
+    # Build install command.
+    # package_source can be:
+    #   - A local directory path (starts with / or ./): use as --find-links
+    #   - A pip-compatible URL (https://, git+, file://...): pass directly
+    #   - Absent: install from PyPI by name
+    cmd = [pip, "install", "--quiet"]
+
+    version_spec = f"{package_name}=={version_pin}" if version_pin else package_name
+
+    if package_source:
+        if package_source.startswith("/") or package_source.startswith("./"):
+            # Local directory: use as find-links, install by name+version
+            cmd += ["--find-links", package_source, "--no-index", version_spec]
+        else:
+            # URL (PyPI extra index, git+..., file://...) -- pass directly
+            cmd.append(package_source)
+    else:
+        cmd.append(version_spec)
+
+    print(f"[provision] {slug}: installing {version_spec}" +
+          (f" from {package_source}" if package_source else " from PyPI"))
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(f"ERROR: pip install failed for {slug}: {exc}", file=sys.stderr)
+        return False
+
+    # Confirm.
+    installed = _installed_version(pip, package_name)
+    if installed:
+        print(f"[provision] {slug}: installed {package_name}=={installed} ok")
+    else:
+        print(f"WARN: {slug}: pip install succeeded but 'pip show' returned nothing -- check entrypoint")
+
+    return True
+
+
+# ──────────────────────────────────────────────────────
+# Commands
+# ──────────────────────────────────────────────────────
+
+def cmd_provision(args: list) -> int:
+    if not args:
+        print("usage: integration provision <slug>|--all", file=sys.stderr)
+        return 2
+
+    if args[0] == "--all":
+        data    = _api_get("/api/mcp/servers")
+        servers = [s for s in data.get("servers", []) if s.get("autoinstall")]
+        if not servers:
+            print("[provision] no autoinstall=true MCP servers registered")
+            return 0
+        ok = 0
+        for server in servers:
+            if _provision(server):
+                ok += 1
+        total = len(servers)
+        print(f"[provision] {ok}/{total} servers provisioned")
+        return 0 if ok == total else 1
+
+    slug   = args[0]
+    server = _api_get(f"/api/mcp/servers/{slug}")
+    return 0 if _provision(server) else 1
+
+
+def cmd_list(_args: list) -> int:
+    data    = _api_get("/api/mcp/servers")
+    servers = data.get("servers", [])
+    if not servers:
+        print("no MCP servers registered")
+        return 0
+    print(f"{'slug':<20} {'transport':<10} {'status':<10} {'autoinstall':<12} package")
+    print("-" * 75)
+    for s in servers:
+        config  = s.get("config") or {}
+        pkg     = config.get("package_name", "")
+        ver     = config.get("version_pin", "")
+        pkg_str = f"{pkg}=={ver}" if ver else pkg
+        print(
+            f"{s['slug']:<20} {s['transport']:<10} {s['status']:<10} "
+            f"{str(s.get('autoinstall', False)):<12} {pkg_str}"
+        )
+    return 0
+
+
+# ──────────────────────────────────────────────────────
+# Entry point
+# ──────────────────────────────────────────────────────
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print(__doc__.strip())
+        sys.exit(0)
+
+    subcmd      = sys.argv[1]
+    subcmd_args = sys.argv[2:]
+
+    if subcmd == "provision":
+        sys.exit(cmd_provision(subcmd_args))
+    elif subcmd == "list":
+        sys.exit(cmd_list(subcmd_args))
+    else:
+        print(f"unknown command: {subcmd}", file=sys.stderr)
+        print("usage: integration provision <slug>|--all  |  integration list", file=sys.stderr)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,13 @@
+{
+  "name": "agent-runtimes",
+  "title": "Claude Code runtime",
+  "provides": "an agent runtime: Claude Code, on a Claude subscription or Anthropic key",
+  "requires": [
+    "gateway"
+  ],
+  "works_without": {},
+  "sidecars": "",
+  "runtime": true,
+  "way": "Claude subscription",
+  "icon": "square-terminal"
+}

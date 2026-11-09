@@ -1,0 +1,47 @@
+{% set priority_color = {
+  "critical": "bg-rose-100 text-rose-700",
+  "high":     "bg-amber-100 text-amber-700",
+  "medium":   "bg-slate-100 text-slate-700",
+  "low":      "bg-slate-50 text-slate-500",
+} %}
+<div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3 items-start">
+  {% for status, label, cards in columns %}
+  <section class="bg-slate-100/60 rounded-lg p-2 min-h-[60vh]">
+    <header class="px-2 py-1 mb-2 flex items-baseline justify-between">
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-600">{{ label }}</h2>
+      <span class="text-xs text-slate-500">{{ cards|length }}</span>
+    </header>
+    <ul class="space-y-2">
+      {% for c in cards %}
+      <li>
+        <a href="/ui/tasks/{{ c.id }}" class="block bg-white rounded border border-slate-200 p-3 hover:border-slate-400 transition">
+          <div class="text-sm font-medium text-slate-900 mb-1 line-clamp-2">{{ c.title }}</div>
+          <div class="flex items-center flex-wrap gap-2 text-xs">
+            <span class="px-1.5 py-0.5 rounded {{ priority_color.get(c.priority, 'bg-slate-100 text-slate-700') }}">
+              {{ c.priority }}
+            </span>
+            {% if c.assignee %}
+            <span class="text-slate-600">@{{ c.assignee }}</span>
+            {% else %}
+            <span class="text-slate-400 italic">unassigned</span>
+            {% endif %}
+            {% if c.eta %}
+            <span class="text-slate-500">{{ c.eta }}</span>
+            {% endif %}
+          </div>
+          {% if c.tags %}
+          <div class="mt-2 flex flex-wrap gap-1">
+            {% for t in c.tags %}
+            <span class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-50 border border-slate-200 text-slate-500">{{ t }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </a>
+      </li>
+      {% else %}
+      <li class="text-xs text-slate-400 italic px-2 py-1">empty</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+</div>

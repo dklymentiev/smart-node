@@ -1,0 +1,228 @@
+{
+  "_comment": [
+    "What the node is made of, and where each kind actually lives.",
+    "",
+    "This file answers ONE question -- WHERE does a class live -- and nothing else.",
+    "How to change a thing (the call, the gate, the proof) is docs/node/entities.md.",
+    "What to offer an owner, in their language, is node-versioning/capabilities.md.",
+    "One fact, one home, applied to our own documentation: no cell here is repeated",
+    "in either of those files, so there is nothing for them to disagree about.",
+    "",
+    "JSON rather than YAML on purpose: the reader that matters runs on the node HOST,",
+    "where bootstrap/B01-core.sh installs jq and a bare python3. python3-yaml is not",
+    "installed there -- every `import yaml` in this repository lives inside a container",
+    "that ships its own requirements.",
+    "",
+    "`registry` is ALWAYS schema-qualified. A bare table name cannot be checked: this",
+    "database has five names that exist in two schemas at once, and reading the wrong",
+    "one is how docs/node/entities.md came to name sn_config.flows as the home of a",
+    "workflow when the catalogue is sn_core.workflows.",
+    "",
+    "Every registry below was read from a live node on 2026-08-16, not copied from",
+    "Row counts are deliberately NOT recorded: how many rows a node holds is",
+    "a fact about that node, not about the release."
+  ],
+
+  "schema_version": "1",
+  "release": "unstamped",
+  "commit": "unstamped",
+
+  "_legacy_comment": [
+    "Names that exist in two schemas. The `home` is the real one; the `twin` is not a",
+    "home and a checker must say so rather than accept it. The last two twins are the",
+    "dangerous ones: they hold rows, so 'does it have rows' confirms the wrong table.",
+    "sn_config.tools, sn_config.flows and sn_config.flow_versions used to be on this",
+    "list; B02 retires them when they are empty."
+  ],
+  "legacy_duplicates": [
+    { "name": "messages",      "home": "sn_core.messages",      "twin": "public.messages",      "twin_holds_rows": false },
+    { "name": "message_state", "home": "sn_core.message_state", "twin": "public.message_state", "twin_holds_rows": false },
+    { "name": "actors",        "home": "sn_core.actors",        "twin": "public.actors",        "twin_holds_rows": true },
+    { "name": "events",        "home": "sn_core.events",        "twin": "public.events",        "twin_holds_rows": true }
+  ],
+
+  "_classes_comment": [
+    "kind:        table   -- a postgres relation in the node's own cluster",
+    "             file    -- a path on the node; the registry IS the file",
+    "             service -- another component's own store, reached through its API",
+    "             none    -- real, and has no registry of its own",
+    "status:      real    -- exists in this release",
+    "             gap     -- named by the taxonomy, not built; nothing may offer it",
+    "contract:    the bolded row in docs/node/entities.md that says HOW to change it,",
+    "             or null when a class is not something an agent creates. A class with",
+    "             a contract MUST have that row: tools/classes-check.sh fails otherwise.",
+    "             This is the join between the two files, and it is not an exemption",
+    "             list -- null means 'not actionable', which is itself checkable."
+  ],
+  "classes": [
+    { "class": "organisation", "registry": "sn_config.tenant_profile", "kind": "table", "status": "real", "contract": null,
+      "disk": null, "memory": "org", "documents": "org/", "writer": "the configurator" },
+
+    { "class": "person", "registry": "sn_config.contacts", "kind": "table", "status": "real", "contract": "Contact",
+      "disk": null, "memory": null, "documents": "org/people/", "writer": "the configurator",
+      "note": "someone OUTSIDE the business. People inside it are the user class." },
+
+    { "class": "user", "registry": "sn_config.users", "kind": "table", "status": "real", "contract": null,
+      "disk": null, "memory": null, "documents": null, "writer": "the configurator",
+      "note": "a person inside the business; separate lifecycle from a contact." },
+
+    { "class": "agent", "registry": "sn_config.agents", "kind": "table", "status": "real", "contract": "Agent",
+      "disk": "/srv/agents/<slug>", "memory": "agent-<slug>", "documents": "agents/<slug>/",
+      "writer": "core-api, from the API only" },
+
+    { "class": "role", "registry": "sn_config.specialists", "kind": "table", "status": "real", "contract": "Persona",
+      "disk": "/srv/agents/_specialists", "memory": null, "documents": "org/roles/", "writer": "core-api" },
+
+    { "class": "department", "registry": "sn_config.departments", "kind": "table", "status": "real", "contract": "Department",
+      "disk": null, "memory": null, "documents": null, "writer": "core-api" },
+
+    { "class": "project", "registry": "sn_config.projects", "kind": "table", "status": "real", "contract": "Project",
+      "disk": "/srv/projects/<slug>", "memory": "project-<slug>", "documents": "<slug>/",
+      "writer": "core-api, and only for a proven session",
+      "note": "membership is sn_config.project_members. Real in the registry but not exposed in the UI." },
+
+    { "class": "tool", "registry": "sn_core.tools", "kind": "table", "status": "real", "contract": "Tool",
+      "disk": "/srv/tools", "memory": null, "documents": "org/tools/", "writer": "core-api",
+      "note": "grants are sn_config.agent_tools, whose tool_id references THIS table." },
+
+    { "class": "workflow", "registry": "sn_core.workflows", "kind": "table", "status": "real", "contract": "Workflow",
+      "disk": "/opt/smart-node/flows/agents/flows", "memory": null, "documents": null,
+      "writer": "register-workflows.py, from a flow YAML",
+      "note": "grants are sn_config.agent_workflows, whose workflow_id references THIS table." },
+
+    { "class": "channel", "registry": "sn_config.channels", "kind": "table", "status": "real", "contract": "Channel",
+      "disk": null, "memory": null, "documents": null, "writer": "core-api",
+      "note": "the binding that makes it route is sn_config.agent_channels; the type alone routes nothing." },
+
+    { "class": "integration", "registry": "sn_config.integrations", "kind": "table", "status": "real", "contract": "Integration",
+      "disk": null, "memory": null, "documents": null, "writer": "core-api" },
+
+    { "class": "knowledge", "registry": "sn_config.agent_knowledge", "kind": "table", "status": "real", "contract": "Knowledge",
+      "disk": null, "memory": null, "documents": null, "writer": "core-api" },
+
+    { "class": "policy", "registry": "sn_config.policies", "kind": "table", "status": "real", "contract": "Policy",
+      "disk": null, "memory": null, "documents": null, "writer": "core-api",
+      "note": "per-agent overrides are sn_config.agent_policy_opts. Absent 's seventeen; it is real." },
+
+    { "class": "schedule", "registry": "sn_core.crons", "kind": "table", "status": "real", "contract": "Schedule",
+      "disk": "/etc/cron.d/smart-node-agents", "memory": null, "documents": null, "writer": "core-api" },
+
+    { "class": "message", "registry": "sn_core.messages", "kind": "table", "status": "real", "contract": "Message",
+      "disk": null, "memory": null, "documents": null, "writer": "channel adapters only",
+      "note": "delivery state is sn_core.message_state. Append-only, enforced by trigger." },
+
+    { "class": "event", "registry": "sn_core.events", "kind": "table", "status": "real", "contract": null,
+      "disk": "/var/log/smart-node/", "memory": null, "documents": null, "writer": "services",
+      "note": "append-only, enforced by trigger. Nobody creates one by hand, hence no contract row." },
+
+    { "class": "desk", "registry": "sn_core.desks", "kind": "table", "status": "real", "contract": "Desk",
+      "disk": null, "memory": null, "documents": null, "writer": "core-api" },
+
+    { "class": "model", "registry": "sn_config.model_pricing", "kind": "table", "status": "real", "contract": "Model",
+      "disk": null, "memory": null, "documents": null, "writer": "core-api" },
+
+    { "class": "mcp_server", "registry": "sn_config.mcp_servers", "kind": "table", "status": "real", "contract": "MCP server",
+      "disk": "/srv/agents/<slug>/.mcp.json", "memory": null, "documents": null, "writer": "core-api" },
+
+    { "class": "node_state", "registry": "sn_core.node_services", "kind": "table", "status": "real", "contract": "Node state",
+      "disk": "/etc/smart-node/release", "memory": null, "documents": null, "writer": "sn-version" },
+
+    { "class": "secret", "registry": "/etc/smart-node/integrations.sops.yaml", "kind": "file", "status": "real", "contract": "Secret",
+      "disk": "/etc/smart-node/integrations.sops.yaml", "memory": null, "documents": null,
+      "writer": "core-api /api/secrets, the only sanctioned write path",
+      "note": "sops-encrypted with the node age key. NOT a table -- entities.md said sn_config.secrets for months and no such table has ever existed." },
+
+    { "class": "memory", "registry": "mesh", "kind": "service", "component": "memory", "status": "real", "contract": "Memory",
+      "disk": null, "memory": "itself", "documents": null, "writer": "agents through the API" },
+
+    { "class": "document", "registry": "doci", "kind": "service", "component": "documents", "status": "real", "contract": "Document",
+      "disk": null, "memory": null, "documents": "itself", "writer": "agents through the API" },
+
+    { "class": "task", "registry": "planner", "kind": "service", "component": "tracking", "status": "real", "contract": "Task",
+      "disk": null, "memory": null, "documents": null, "writer": "agents through the API" },
+
+    { "class": "objective", "registry": "planner", "kind": "service", "component": "tracking", "status": "real", "contract": null,
+      "disk": null, "memory": null, "documents": null, "writer": "the owner" },
+
+    { "class": "approval_gate", "registry": null, "kind": "none", "status": "real", "contract": "Approval gate",
+      "disk": null, "memory": null, "documents": null, "writer": "whoever approves",
+      "note": "cross-cutting; it is a comment on a task, not an endpoint." },
+
+    { "class": "dataset", "registry": null, "kind": "none", "status": "gap", "contract": null,
+      "disk": "/srv/data/<slug>", "memory": "data-<slug>", "documents": null, "writer": null,
+      "note": "machine output, deliberately OUT of semantic search. Nothing may offer this until it has a registry." },
+
+    { "class": "experiment", "registry": null, "kind": "none", "status": "gap", "contract": null,
+      "disk": "/srv/lab/<slug>", "memory": null, "documents": null, "writer": null,
+      "note": "a short-lived work area that expires. Open question whether it is a class at all or a project with a lifetime." },
+
+    { "class": "backup", "registry": null, "kind": "none", "status": "gap", "contract": null,
+      "disk": null, "memory": null, "documents": null, "writer": null,
+      "note": "No backup registry exists in sn_config or sn_core on any node. Backups are taken from OUTSIDE the node." }
+  ],
+
+  "_filesystem_homes_comment": [
+    "Class-home paths under /work, with the ownership and access rules the installer",
+    "applies via chown, chmod and setfacl.",
+    "",
+    "writer_group is the grp-role-<capability> that owns the home. reader_groups is the",
+    "set of grp-role-* that get r-x through the default POSIX ACL. mode is the numeric",
+    "chmod applied to the directory itself; setgid is expressed here as the 2000 bit.",
+    "",
+    "Four rows have neither writer_group nor reader_groups: _archive, _release,",
+    "_tmp and tmp. They are declared here",
+    "so the installer applies the mode explicitly rather than skipping them silently.",
+    "",
+    "Per-project ACL rows for /work/projects/<slug> are computed at install time from",
+    "the project registry (grp-prj-<slug>, plus the `restricted` flag toggling the",
+    "grp-role-developer default entry). The base row `projects` is what the installer",
+    "applies to /work/projects itself.",
+    "",
+    "Anything under /work whose top-level directory is not declared here causes the",
+    "installer to refuse with a named error."
+  ],
+  "filesystem_homes": [
+    { "path": "/work/flows",         "writer_group": "grp-role-developer", "reader_groups": ["grp-role-architect", "grp-role-sysadmin"], "mode": "2775",
+      "note": "Owner-authored trees: flows/, specialists/, teams/." },
+
+    { "path": "/work/monitors",      "writer_group": "grp-role-developer", "reader_groups": ["grp-role-sysadmin"],                        "mode": "2775",
+      "note": "Developer-authored monitors. Sysadmin reads for incident response." },
+
+    { "path": "/work/tools",         "writer_group": "grp-role-sysadmin",  "reader_groups": ["grp-role-developer"],                       "mode": "2775",
+      "note": "Auxiliary tools. Developers read; sysadmin writes." },
+
+    { "path": "/work/instructions",  "writer_group": "grp-role-configurator", "reader_groups": ["grp-role-architect", "grp-role-developer", "grp-role-sysadmin"], "mode": "2775",
+      "note": "Owner-visible instructions authored by the foreman. Writer group tracks the capability (configurator), NOT the agent's personal slug: the foreman's slug can change while capability stays constant." },
+
+    { "path": "/work/downloads",     "writer_group": "grp-agents",         "reader_groups": [],                                           "mode": "2775",
+      "note": "Transient staging. Every agent can drop here; nothing else. grp-agents is a collective (not a capability role) maintained by bootstrap/groups.sh apply_agents_group() -- every non-archived agent's os_user plus admin." },
+
+    { "path": "/work/lab",           "writer_group": "grp-role-developer", "reader_groups": ["grp-role-architect", "grp-role-sysadmin"], "mode": "2775",
+      "note": "Short-lived work areas. Same access as /work/flows." },
+
+    { "path": "/work/sites",         "writer_group": "grp-role-content",   "reader_groups": ["grp-role-developer", "grp-role-sysadmin"], "mode": "2775",
+      "note": "Site content authored by content-agent." },
+
+    { "path": "/work/oss",           "writer_group": "grp-role-developer", "reader_groups": ["grp-role-architect", "grp-role-sysadmin"], "mode": "2775",
+      "note": "Upstream forks and mirrors." },
+
+    { "path": "/work/projects",      "writer_group": "grp-role-developer", "reader_groups": ["grp-role-architect", "grp-role-sysadmin"], "mode": "2775",
+      "note": "Base ACL for /work/projects. Per-slug ACLs (grp-prj-<slug>) are computed by the installer from the project registry; a project with `restricted=true` drops the grp-role-developer entry and keeps only grp-prj-<slug>." },
+
+    { "path": "/work/_archive",      "writer_group": null,                 "reader_groups": [],                                           "mode": "0755",
+      "owner": "root", "group": "root",
+      "note": "Read-only historical. No default ACL." },
+
+    { "path": "/work/_release",      "writer_group": "grp-role-sysadmin",  "reader_groups": [],                                           "mode": "2775",
+      "owner": "root", "group": "grp-role-sysadmin",
+      "note": "Release artefacts. Writer group grp-role-sysadmin includes admin, which writes here daily. The directory must remain group-writable so applying the class does not block release writes." },
+
+    { "path": "/work/_tmp",          "writer_group": null,                 "reader_groups": [],                                           "mode": "1777",
+      "owner": "root", "group": "root",
+      "note": "Sticky world-writable scratch." },
+
+    { "path": "/work/tmp",           "writer_group": null,                 "reader_groups": [],                                           "mode": "1777",
+      "owner": "root", "group": "root",
+      "note": "Sticky world-writable scratch (legacy path, same as _tmp)." }
+  ]
+}

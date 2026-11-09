@@ -1,0 +1,202 @@
+# Smart Node -- declared permission surface.
+#
+# THE list. This file is the only place where "who may write here" is decided
+# for a Smart Node. Companion installers create directories; they do not choose
+# their permissions. permissions.sh reads this file, applies it, and refuses on
+# anything writable that is not declared here.
+#
+# A node adds its own state paths in /etc/smart-node/permissions.local.list
+# (same format). Those entries may only lie under /var/lib/smart-node or /srv
+# and may only add: a path declared here cannot be redeclared there.
+#
+# Format, whitespace-separated:
+#
+#     PATH   OWNER   GROUP   MODE   [FLAG]   [# note]
+#
+#   FLAG   cover  -- the subtree is exempt from the undeclared-writable scan
+#          tree   -- ENFORCED: nothing under this path may be writable beyond
+#                    its owner. Strips group/other write recursively; does NOT
+#                    chown recursively (a component tree legitimately mixes
+#                    ownership, and rewriting that breaks components for
+#                    reasons unrelated to this boundary).
+#
+#   PATH   absolute; a trailing /* matches one level (e.g. /srv/agents/*)
+#   OWNER  user name, numeric uid (for in-container uids), or "-" to leave the
+#          owner untouched (per-agent dirs, where the owner differs per agent)
+#   GROUP  group name, numeric gid, or "-" to leave the group untouched
+#   MODE   4 octal digits, setgid/sticky included (e.g. 2755, 3775, 0640)
+#
+# A path that does not exist is SKIPPED, not failed: the component that owns it
+# is simply not installed on this node.
+#
+# ---------------------------------------------------------------------------
+# The rule this file exists to hold
+# ---------------------------------------------------------------------------
+#
+# Two groups, and the asymmetry between them is the whole boundary:
+#
+#   smart-node          -- SERVICE group. Component service accounts. They
+#                          legitimately share core state with each other.
+#   smart-node-agents   -- AGENT group. agent-<slug> accounts run here.
+#
+#   A service user MAY join smart-node-agents where it genuinely shares state
+#   with agents (core-api provisions their credential; service crons write to
+#   the same log tree). That grants agents nothing.
+#
+#   An agent user may NEVER join smart-node. That is the boundary. Every
+#   group-write below is safe only because of it.
+#
+# History, so the next reader does not re-derive it: until 2026-07-10 the group
+# `smart-node` contained service accounts only, and every group-write in this
+# tree was written under that assumption. agent users were given that group as
+# their primary, to fix a real bug (an agent's wake-cron could not write its own
+# log dir). The directory modes were never revisited. This file, and the split
+# above, are the correction. See the matching group and ACL rules in bootstrap/groups.sh and bootstrap/acls.sh.
+#
+# ---------------------------------------------------------------------------
+
+# --- core tree -------------------------------------------------------------
+# setgid is KEPT (per-component subdirs inherit the group); only group-write
+# goes. Components own and write their own subtrees.
+/opt/smart-node                        root                 smart-node         2755
+# `tree`: the whole component tree was group-writable, so an agent could not
+# merely add a file beside the mail adapter -- it could APPEND TO adapter.py,
+# which a different service user then executes. Demonstrated on a live node
+# and reverted.
+/opt/smart-node/communication          smart-node-communication smart-node     2755  tree
+/opt/smart-node/communication/state    smart-node-communication smart-node     0750
+
+# Every other component tree, same rule: nothing under it writable beyond its
+# owner. Owner and group are left alone (`-`) because each component owns its
+# own tree and that ownership is the component's business, not this list's.
+#
+# On a node installed from canon these are already compliant and the entries do
+# nothing. They exist for nodes where a component was cloned or edited in place:
+# such trees are live git working copies, group-writable throughout, so every
+# agent can rewrite the dispatcher, core-api and admin-runner code that other
+# services execute. A path that does not exist is skipped, so listing components
+# a given node does not have is free.
+/opt/smart-node/core-api               -                    -                  2755  tree
+/opt/smart-node/dispatcher             -                    -                  2755  tree
+/opt/smart-node/admin-runner           -                    -                  2755  tree
+/opt/smart-node/gateway                -                    -                  2755  tree
+/opt/smart-node/studio                 -                    -                  2755  tree
+/opt/smart-node/hitl                   root                 smart-node         2755  tree
+/opt/smart-node/flows                  -                    -                  2755  tree
+# The node's own flows, published by core-api, and the Runner's run directories
+# for them. Owner-written only: core-api owns flows/, the dispatcher its run
+# directories; the tree flag keeps anyone else from gaining write here.
+/var/lib/smart-node/workflows          -                    -                  2755  tree
+/opt/smart-node/mail                   -                    -                  2755  tree
+/opt/smart-node/rein                   -                    -                  2755  tree
+/opt/smart-node/workflows              -                    -                  2755  tree
+# NOT listed with `tree`: memory, tracking and documents. Those are data trees,
+# not code trees, and at least one of them (documents) legitimately holds a
+# group-writable subtree -- Doci's own file store, declared separately below.
+# A recursive write-strip there would break the component it is meant to guard.
+
+# --- the projection tree ---------------------------------------------------
+# core-api renders agent dirs, the tools registry and generated files here.
+# It is the writer; nobody else needs to be.
+# `tree` on all three: core-api is the only writer. A node with a hand-built
+# tools tree (connectors, host-utils, planner) can carry it group-writable
+# throughout -- meaning any agent could rewrite the very tools it is trusted to
+# run. Per-agent runtime dirs below keep their own entries; tree only strips
+# write beyond the owner, and 2750 has none to strip.
+/srv/agents                            smart-node-core-api  smart-node         2755  tree
+/srv/agents/_specialists               smart-node-core-api  smart-node         2755
+/srv/tools                             smart-node-core-api  smart-node         2755  tree
+/srv/generated                         smart-node-core-api  smart-node         2755  tree
+
+# --- identity provider -----------------------------------------------------
+# The authum container writes credentials.json and the rate-limit files as
+# in-container uid 82. Own the dirs by that uid instead of opening them to the
+# The agent runtime user's home, which happens to hold the LLM CLI that every
+# agent is spawned to run (/usr/local/bin/claude symlinks into it). 0751, not
+# 0750, for the same reason as /var/log/smart-node below: at 0750 an agent user
+# cannot TRAVERSE to the binary, so the gateway starts a session, returns 200,
+# and the agent answers with an empty string. A node from a clean install was
+# born unable to think and nothing errored --
+# Traverse only: --x for other, so nobody outside the group can list the home.
+# The fix is a declared mode, NOT group membership: an agent user may never
+# join the service group, which is the whole boundary.
+/var/lib/smart-node/agent              smart-node-agent     smart-node         0751
+/var/lib/smart-node/hitl               smart-node-hitl      smart-node         0700  tree
+/var/lib/smart-node/hitl-queue         smart-node-hitl      smart-node-hitl-queue 2750 tree
+/var/lib/smart-node/hitl-queue/delivered smart-node-hitl-delivery smart-node-hitl-queue 2710 tree
+# world; core-api still writes users.json through the service group.
+# Was 0777 on all three --
+/var/lib/smart-node/authum             root                 smart-node         0750
+/var/lib/smart-node/authum/auth        82                   smart-node         2770
+/var/lib/smart-node/authum/data        82                   smart-node         2770
+# Owner is the CONTAINER uid, not root: Authum's php-fpm workers run as 82 and
+# READ this file on every password login. Tightening it to 0660 root:smart-node
+# on the identity provider closed world-read -- and locked the identity provider out of its
+# own account store, so password login returned a PHP warning instead of JSON.
+# Passkey login kept working (credentials.json is already owned by 82), which is
+# what hid it. Group stays smart-node: core-api writes it from /api/setup/complete.
+/var/lib/smart-node/authum/auth/users.json 82                smart-node         0660
+# Backups of the account store hold the same password hashes as the live file
+# but nothing needs to read them. Root only.
+/var/lib/smart-node/authum/auth/users.json.bak-* root        root               0600
+/var/lib/smart-node/panel              82                   smart-node         2770
+
+# --- secrets ---------------------------------------------------------------
+# Group-readable/writable by the SERVICE group only: core-api reads the age key
+# and writes the store. With agents out of that group this is closed.
+/etc/smart-node/age-key.txt            root                 smart-node         0640
+/etc/smart-node/integrations.sops.yaml root                 smart-node         0660
+
+# --- agent-facing ----------------------------------------------------------
+# What agents legitimately need. This is what must move WITH them, or they lose
+# their model credential and stop working in a way that looks like an LLM outage.
+/etc/smart-node/local                  root                 root               0700  tree  # node-local settings, loaded last by every smart-node unit; the release never writes inside (bootstrap/local-layer.sh)
+/etc/smart-node/permissions.local.list root                root               0644        # the node's own state paths; read by permissions.sh, may only add under /var/lib/smart-node or /srv
+/etc/smart-node/agent-runtime.env      root                 smart-node-agents  0640
+/opt/smart-node/scratch                smart-node-agent     smart-node-agents  2770  cover
+# The log root must be TRAVERSABLE by agents, or the cron log tree below is
+# unreachable no matter what its own mode says. 0751: everyone can pass
+# through, nobody but the owner can list it. Found by the positive half of the
+# e2e test -- agents lost their cron log the moment they left the service
+# group, which is exactly the "looks like an LLM outage" failure this task was
+# warned about.
+/var/log/smart-node                    smart-node           smart-node         0751
+# Shared cron log tree: agents and service crons both append here. Sticky, so
+# one job cannot delete another's log -- which before this it could.
+/var/log/smart-node/cron               root                 smart-node-agents  3775
+# Per-agent runtime dirs, written by the wake-cron running as the agent.
+# 2750, not 0750: setgid is inherited from /srv/agents and re-applies itself
+# immediately on this filesystem -- `chmod 0750` reads back as 2750. Harmless,
+# because 2750 grants the group no write; declared as it really is so the
+# stage converges instead of "fixing" the same four dirs forever.
+/srv/agents/*/logs                     -                    smart-node-agents  2750
+/srv/agents/*/state                    -                    smart-node-agents  2750
+# The agent's own work area. Declared alongside logs/ and state/ for the
+# same reason: admin-runner chowns it to the agent, and an undeclared dir the
+# provisioner creates is what makes the next update refuse.
+/srv/agents/*/work                     -                    smart-node-agents  2750
+
+# --- project work areas --------------------------------------
+# /srv/projects is the SHARED area: traversable by everyone so a member can
+# reach their own project, writable by nobody, so a project cannot be created by
+# making a directory. Only admin-runner's ensure_project creates them.
+#
+# `cover` because everything BENEATH is group-writable by design -- that is what
+# a shared work area is -- and the undeclared-writable scan would otherwise
+# refuse every project dir and fail every node update from the first project on.
+# Found exactly that way: the scan flagged the tree the moment it existed.
+#
+# Covered is not unmanaged. The glob line below re-applies 2770 to each project
+# dir on every run, so a directory that drifts to 0777 is corrected even though
+# the scan no longer reports it.
+/srv/projects                          root                 root               0755  cover
+# Group is "-": it differs per project (project-<slug>), which is the whole
+# access mechanism. setgid (the leading 2) is not decoration -- without it a
+# file written by one member does not carry the group and the next member
+# cannot read it, which fails on the second day rather than the first.
+/srv/projects/*                        -                    -                  2770
+
+# --- documents ---------------------------------------------------------------
+# Doci's own file tree: group www-data, which no agent is in. Declared so the
+# undeclared-writable scan does not flag it.
+/opt/smart-node/documents/files        www-data             www-data           2775  cover

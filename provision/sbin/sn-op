@@ -1,0 +1,1407 @@
+#!/bin/bash
+#
+# sn-op -- validated sysadmin operational wrapper.
+#
+# Root-owned, root-executed via sudoers. The one binary agent-sysadmin is
+# permitted to invoke (Cmnd_Alias SN_OP in /etc/sudoers.d/agent-max).
+#
+# Every argument is validated against a typed regex before any canonicalisation.
+# After validation, exec the real binary with quoted -- args. Never sh -c, never
+# $*, never a variable number of trailing paths.
+#
+# Every invocation emits a row to sn_core.events with kind='sysadmin.op' via
+# core-api on the /run/smart-node/api/core-api.sock. If core-api is unreachable
+# (e.g. it is the very service being restarted), a NDJSON line is written to
+# /var/log/sn-op-fallback.jsonl (0640 root:adm). FAIL-LOUD: if neither path
+# accepts the "accepted" event, the wrapper refuses to proceed.
+#
+# Tier B verbs (service-stop, container-stop, rm) require --approval <task_id>
+# where the task is in_progress with approved_at set (the owner approved it;
+# only the owner can) within 300 seconds, argv matches, and no prior
+# exec_ok|exec_error row consumed the approval. Any failed check refuses with a
+# named error (SN_OP_APPROVAL_*).
+#
+# The argument and approval checks below define the accepted operations.
+#
+# unit-install / unit-enable (0.2.0): lets the sysadmin agent put a
+# smart-node-*.service|timer into /etc/systemd/system. A unit file is code run
+# as root, so the boundary is its CONTENT: unit-install is Tier B, binds the
+# file by sha256 in argv, copies it once into a root-only directory, refuses a
+# service without an agent-*/smart-node-* User= (or with a + / ! Exec prefix,
+# PermissionsStartOnly=, AmbientCapabilities=), and never replaces a unit it did
+# not install itself (marker line on the first line).
+#
+# run / verbs (0.3.0): a root-owned table, /etc/smart-node/sn-op-verbs.json,
+# names the operations the sysadmin may run beyond the fixed verbs above, so a
+# new one is a row in that file and not an edit of this script. The table is
+# trusted only while root owns it and neither it nor its directory is writable
+# by anyone else. A row gives a fixed argv prefix (an absolute path under
+# /opt/smart-node or /usr/local/sbin, no symlinks, root-owned, not writable by
+# others) and one regex per argument; every argument must match its regex in
+# full, may not start with '-', and the count must be exact. Never a shell.
+# A row with "tier": "B" needs --approval like the destructive verbs above.
+#
+# dropin-install (0.4.0): lets the sysadmin agent add a small systemd drop-in
+# to an existing smart-node-* unit, for the case where a service needs one more
+# directory it may write to. Tier B like unit-install: the source is bound by
+# sha256, copied once into a root-only directory and checked there. The
+# boundary is the CONTENT again, and it is an allowlist: a [Service] section with
+# ReadWritePaths= (only under /var/lib/smart-node or /var/log/smart-node),
+# ReadOnlyPaths=, InaccessiblePaths=, Restart= and RestartSec=. Everything else
+# (User=, Exec*=, capabilities, Environment=, other sections) is refused. It
+# never replaces a drop-in it did not install, and it does not restart anything:
+# service-restart is its own verb.
+#
+# route-install (0.5.0): lets the sysadmin agent publish an INTERNAL route for a
+# service it built: a Traefik file-provider file in /etc/smart-node/traefik/dynamic.
+# Tier B, sha256-bound, copied once into a root-only directory and checked there by
+# an allowlist: only http.routers and http.services; a router is one
+# Host(`<name>.<internal domain>`) on websecure with tls {} and at least one of the
+# access middlewares vpn-only@file / smart-node-auth@docker; a service is a
+# loadBalancer to http://host.docker.internal:PORT or http://127.0.0.1:PORT with
+# PORT >= 1024. Router and service names start with smart-node- and may not exist
+# in, and the Host may not appear in, any other file of that directory. Files are
+# 80-89-name.yml, carry our marker and are never written over unmarked ones. The internal
+# domain is the node's own, one line in /etc/smart-node/sn-op-route-domain (root-owned, like
+# the verb table); with no such file the verb refuses, it has no default to fall back on.
+#
+# ufw-allow-docker (0.6.0): lets the sysadmin agent open one port of an app it runs on the host
+# to the node's own Docker network, which is where Traefik lives, and to nothing else. Tier B.
+# One rule only: allow from the node's Docker subnet (SMART_NODE_DOCKER_SUBNET in routing.env,
+# a private range) to a TCP port inside the range in /etc/smart-node/sn-op-app-ports (one line,
+# LOW-HIGH, root-owned; no file, no verb). It cannot name another source, another protocol, a
+# port outside the range or a port below 1024, and it never opens anything to the internet.
+#
+# Modes:
+#   SNOP_DRY_RUN=1  Run all validation and approval checks, print the resolved
+#                   argv to stdout as "would-exec: <argv>", skip event emit and
+#                   the real exec. Exit 0 if validation passed, non-zero with a
+#                   named error otherwise. For tests/permissions-sn-op.test.sh.
+
+set -euo pipefail
+
+readonly SN_OP_VERSION="0.6.0"
+readonly SOCKET="/run/smart-node/api/core-api.sock"
+readonly EVENTS_URL="http://localhost/api/events"
+readonly PLANNER_TASK_URL="http://localhost/api/planner/api/v1/tasks"
+readonly FALLBACK_LOG="/var/log/sn-op-fallback.jsonl"
+readonly FRESHNESS_SECONDS=300
+# Where unit-install writes. Only a dry run may point it elsewhere, so a test
+# can stage fixtures without root; a real run always uses /etc/systemd/system.
+UNIT_DIR="/etc/systemd/system"
+if [[ "${SNOP_DRY_RUN:-0}" == "1" && -n "${SNOP_DRY_RUN_UNIT_DIR:-}" ]]; then
+    UNIT_DIR="$SNOP_DRY_RUN_UNIT_DIR"
+fi
+
+# Where route-install writes, and where it reads the node's internal domain. Only a dry run
+# may point either elsewhere.
+TRAEFIK_DIR="/etc/smart-node/traefik/dynamic"
+ROUTE_DOMAIN_FILE="/etc/smart-node/sn-op-route-domain"
+if [[ "${SNOP_DRY_RUN:-0}" == "1" ]]; then
+    [[ -n "${SNOP_DRY_RUN_TRAEFIK_DIR:-}" ]] && TRAEFIK_DIR="$SNOP_DRY_RUN_TRAEFIK_DIR"
+    [[ -n "${SNOP_DRY_RUN_ROUTE_DOMAIN_FILE:-}" ]] && ROUTE_DOMAIN_FILE="$SNOP_DRY_RUN_ROUTE_DOMAIN_FILE"
+fi
+
+# Where ufw-allow-docker reads the node's Docker subnet and the port range it may open. Only a
+# dry run may point either elsewhere.
+ROUTING_ENV="/etc/smart-node/routing.env"
+APP_PORTS_FILE="/etc/smart-node/sn-op-app-ports"
+if [[ "${SNOP_DRY_RUN:-0}" == "1" ]]; then
+    [[ -n "${SNOP_DRY_RUN_ROUTING_ENV:-}" ]] && ROUTING_ENV="$SNOP_DRY_RUN_ROUTING_ENV"
+    [[ -n "${SNOP_DRY_RUN_APP_PORTS_FILE:-}" ]] && APP_PORTS_FILE="$SNOP_DRY_RUN_APP_PORTS_FILE"
+fi
+
+DRY_RUN="${SNOP_DRY_RUN:-0}"
+
+# The table of operations. Only a dry run may point it at a fixture, so a test
+# can stage one without root; a real run always reads the root-owned file.
+VERB_TABLE="/etc/smart-node/sn-op-verbs.json"
+if [[ "$DRY_RUN" == "1" && -n "${SNOP_DRY_RUN_VERB_TABLE:-}" ]]; then
+    VERB_TABLE="$SNOP_DRY_RUN_VERB_TABLE"
+fi
+readonly RE_TABLE_VERB='^[a-z][a-z0-9-]{0,39}$'
+
+# ---------- named errors ----------------------------------------------------
+
+die_named() {
+    local name="$1"
+    local msg="${2:-}"
+    printf '[sn-op] %s: %s\n' "$name" "$msg" >&2
+    # Emit refuse event before exiting, unless we are already deep enough that
+    # emission would cascade. Refuse-emit failures do not block the exit.
+    _emit_refuse "$name" "$msg" || true
+    exit 2
+}
+
+# ---------- argument regexes (verbatim from 7327) ---------------------------
+
+readonly RE_GROUP='^grp-[a-z0-9-]+$'
+readonly RE_USER='^(agent-[a-z0-9-]+|admin)$'
+readonly RE_OCTAL='^[0-7]{3,4}$'
+readonly RE_ACL_ITEM='(default:)?(user|group|other|mask|u|g|o|m):[a-z0-9_-]*:[rwxX-]{1,3}'
+readonly RE_ACL_REMOVE_ITEM='(default:)?(u|g|o|m):[a-z0-9_-]*'
+readonly RE_UNIT='^smart-node-[a-z0-9._-]+$'
+readonly RE_CONTAINER='^(smart-node|omnivoice)-[a-z0-9._-]+$'
+readonly RE_LINES='^[1-9][0-9]{0,3}$'
+readonly RE_ISO_TIME='^[0-9]{4}-[0-9]{2}-[0-9]{2}([T ][0-9]{2}:[0-9]{2}(:[0-9]{2})?(Z|[+-][0-9]{2}:?[0-9]{2})?)?$'
+readonly RE_TASK_ID='^[1-9][0-9]{0,9}$'
+readonly RE_SHA256='^[0-9a-f]{64}$'
+# A unit file installed through unit-install may only run as an agent or a
+# smart-node service account, never as root.
+readonly RE_UNIT_USER='^(agent-|smart-node-)[a-z0-9-]+$'
+readonly UNIT_MARKER='# installed-by: sn-op unit-install'
+readonly UNIT_MAX_BYTES=16384
+readonly DROPIN_MARKER='# installed-by: sn-op dropin-install'
+readonly RE_DROPIN_NAME='^[0-9]{2}-[a-z0-9][a-z0-9._-]{0,59}\.conf$'
+readonly RE_DROPIN_RWPATH='^-?/(var/lib|var/log)/smart-node(/[A-Za-z0-9._-]+)*$'
+readonly RE_DROPIN_ANYPATH='^-?/[A-Za-z0-9._/-]*$'
+readonly ROUTE_MARKER='# installed-by: sn-op route-install'
+readonly RE_ROUTE_NAME='^8[0-9]-[a-z0-9][a-z0-9._-]{0,59}\.yml$'
+readonly RE_DROPIN_LINE='^([A-Za-z]+)[[:space:]]*=[[:space:]]*(.+)$'
+
+validate_group() {
+    [[ "$1" =~ $RE_GROUP ]] || die_named SN_OP_ARG_GROUP "group must match $RE_GROUP, got: $1"
+}
+
+validate_user() {
+    [[ "$1" =~ $RE_USER ]] || die_named SN_OP_ARG_USER "user must match $RE_USER, got: $1"
+}
+
+validate_octal() {
+    [[ "$1" =~ $RE_OCTAL ]] || die_named SN_OP_ARG_MODE "mode must match $RE_OCTAL, got: $1"
+}
+
+validate_acl_spec() {
+    local spec="$1"
+    if [[ "$spec" == "-x" ]]; then
+        # -x is not a spec itself; it flags removal and its own spec follows.
+        return 0
+    fi
+    # A spec is a comma-list of ACL items. Try full match; awk-split for detail.
+    local full_add="^${RE_ACL_ITEM}(,${RE_ACL_ITEM})*$"
+    local full_rm="^${RE_ACL_REMOVE_ITEM}(,${RE_ACL_REMOVE_ITEM})*$"
+    if [[ "$spec" =~ $full_add ]] || [[ "$spec" =~ $full_rm ]]; then
+        return 0
+    fi
+    die_named SN_OP_ARG_ACL_SPEC "acl spec malformed: $spec"
+}
+
+validate_unit() {
+    [[ "$1" =~ $RE_UNIT ]] || die_named SN_OP_ARG_UNIT_SHAPE "unit must match $RE_UNIT, got: $1"
+}
+
+validate_container() {
+    [[ "$1" =~ $RE_CONTAINER ]] || die_named SN_OP_ARG_CONTAINER_SHAPE "container must match $RE_CONTAINER, got: $1"
+}
+
+validate_lines() {
+    [[ "$1" =~ $RE_LINES ]] || die_named SN_OP_ARG_LINES "lines must match $RE_LINES (1-9999), got: $1"
+}
+
+validate_iso_time() {
+    [[ "$1" =~ $RE_ISO_TIME ]] || die_named SN_OP_ARG_ISO_TIME "iso-time must match $RE_ISO_TIME, got: $1"
+}
+
+validate_task_id() {
+    [[ "$1" =~ $RE_TASK_ID ]] || die_named SN_OP_APPROVAL_TASK_ID_SHAPE "task_id must match $RE_TASK_ID, got: $1"
+}
+
+# validate_path -- non-empty, absolute, no control chars, no `..` component,
+# canonicalises inside /work, and (if it exists) realpath -e must equal
+# realpath -m so a symlink escape at check time is refused.
+#
+# Sets CANONICAL_PATH on success.
+CANONICAL_PATH=""
+validate_path() {
+    local p="$1"
+    [[ -n "$p" ]] || die_named SN_OP_PATH_EMPTY "path must be non-empty"
+    [[ "${p:0:1}" == "/" ]] || die_named SN_OP_PATH_NOT_ABSOLUTE "path must be absolute, got: $p"
+    # Control chars: NUL is not reachable through bash args, but LF/TAB are.
+    if [[ "$p" == *$'\n'* || "$p" == *$'\t'* ]]; then
+        die_named SN_OP_PATH_CONTROL_CHAR "path contains control character"
+    fi
+    # Whitespace (space) in a path is refused as ambiguous. Legitimate /work
+    # filenames never contain spaces; a space-carrying path is the shape of
+    # an argument-split escape attempt. If a real /work file
+    # ever needs a space in its name, the owner can rename it first.
+    if [[ "$p" == *" "* ]]; then
+        die_named SN_OP_PATH_WHITESPACE "path contains whitespace (space); refused as ambiguous"
+    fi
+    # No `..` component. Refuse BEFORE canonicalisation.
+    local IFS='/'
+    read -ra parts <<< "$p"
+    local part
+    for part in "${parts[@]}"; do
+        if [[ "$part" == ".." ]]; then
+            die_named SN_OP_PATH_TRAVERSAL "path contains '..' component: $p"
+        fi
+    done
+    unset IFS
+    # realpath -m resolves without requiring existence.
+    local rm rp
+    rm="$(realpath -m -- "$p" 2>/dev/null)" || die_named SN_OP_PATH_REALPATH "realpath -m failed for: $p"
+    if [[ "$rm" != "/work" && "$rm" != "/work/"* ]]; then
+        die_named SN_OP_PATH_OUTSIDE_WORK "path resolves outside /work: $rm (from $p)"
+    fi
+    # If path exists on disk, realpath -e must equal realpath -m. Blocks
+    # symlink escapes where the link exists at check time.
+    if [[ -e "$p" || -L "$p" ]]; then
+        rp="$(realpath -e -- "$p" 2>/dev/null)" || die_named SN_OP_PATH_REALPATH "realpath -e failed for: $p"
+        if [[ "$rp" != "$rm" ]]; then
+            die_named SN_OP_PATH_SYMLINK_ESCAPE "symlink escape: realpath -e ($rp) != realpath -m ($rm)"
+        fi
+    fi
+    CANONICAL_PATH="$rm"
+}
+
+# ---------- event emission --------------------------------------------------
+
+_event_json() {
+    # Args: verb tier outcome refuse_reason exit_code elapsed_ms approval_task_id args_json_str
+    local verb="$1" tier="$2" outcome="$3" refuse="$4" exit_code="$5" elapsed="$6" approval="$7" args_json="$8"
+    local actor_os="${SUDO_USER:-$(id -un)}"
+    # jq -n composes safe JSON; refuse_reason/exit_code/approval_task_id are
+    # optional and passed as strings ("" -> null via jq).
+    jq -cn \
+        --arg actor_slug 'sysadmin' \
+        --arg actor_os   "$actor_os" \
+        --arg verb       "$verb" \
+        --arg tier       "$tier" \
+        --arg outcome    "$outcome" \
+        --arg refuse     "$refuse" \
+        --arg exit_code  "$exit_code" \
+        --arg elapsed    "$elapsed" \
+        --arg approval   "$approval" \
+        --argjson args   "$args_json" \
+        '{
+            actor: $actor_slug,
+            event_type: "sysadmin.op",
+            entity_type: "verb",
+            entity_id: $verb,
+            payload: {
+                actor_slug: $actor_slug,
+                actor_os: $actor_os,
+                verb: $verb,
+                tier: $tier,
+                outcome: $outcome,
+                refuse_reason: (if $refuse == "" then null else $refuse end),
+                exit_code: (if $exit_code == "" then null else ($exit_code|tonumber) end),
+                elapsed_ms: (if $elapsed == "" then null else ($elapsed|tonumber) end),
+                approval_task_id: (if $approval == "" then null else ($approval|tonumber) end),
+                args: $args,
+                sn_op_version: "'"$SN_OP_VERSION"'"
+            }
+        }'
+}
+
+_post_event() {
+    local body="$1"
+    curl -sS --unix-socket "$SOCKET" -m 3 \
+        -H 'Content-Type: application/json' \
+        -X POST "$EVENTS_URL" -d "$body" \
+        -o /dev/null -w '%{http_code}' 2>/dev/null
+}
+
+_append_fallback() {
+    local body="$1"
+    # Ensure the file exists with 0640 root:adm. Directory must exist.
+    if [[ ! -e "$FALLBACK_LOG" ]]; then
+        install -m 0640 -o root -g adm /dev/null "$FALLBACK_LOG" 2>/dev/null \
+            || return 1
+    fi
+    printf '%s\n' "$body" >> "$FALLBACK_LOG" || return 1
+    return 0
+}
+
+_emit() {
+    # Try core-api first; fall back to JSONL. Return 0 iff at least one path
+    # accepted the write. Caller decides FAIL-LOUD.
+    local body="$1"
+    [[ "$DRY_RUN" == "1" ]] && return 0
+    local http
+    http="$(_post_event "$body" 2>/dev/null || echo 000)"
+    if [[ "$http" == "201" || "$http" == "200" ]]; then
+        return 0
+    fi
+    if _append_fallback "$body"; then
+        return 0
+    fi
+    return 1
+}
+
+# Refuse-emit helper (called from die_named). Keeps refuse rows visible even
+# when validation fails.
+_emit_refuse() {
+    local name="$1" msg="$2"
+    local verb="${SN_OP_CURRENT_VERB:-unknown}"
+    local tier="${SN_OP_CURRENT_TIER:-?}"
+    local args_json='[]'
+    if [[ -n "${SN_OP_CURRENT_ARGS_JSON:-}" ]]; then
+        args_json="$SN_OP_CURRENT_ARGS_JSON"
+    fi
+    local body
+    body="$(_event_json "$verb" "$tier" "refused" "$name: $msg" "" "" "" "$args_json" 2>/dev/null)" || return 0
+    _emit "$body" >/dev/null 2>&1 || true
+}
+
+# ---------- approval verification (Tier B) ----------------------------------
+
+verify_approval() {
+    # Args: task_id verb argv_json
+    #
+    # All checks pass -> return 0. Any fail -> die_named.
+    local task_id="$1" verb="$2" argv_json="$3"
+    validate_task_id "$task_id"
+    if [[ "$DRY_RUN" == "1" ]]; then
+        # In dry-run we do not consult core-api. Callers can set
+        # SNOP_DRY_RUN_APPROVAL_OK=1 to simulate a passing approval, otherwise
+        # dry-run refuses (so E17 remains a refusal in tests without a live
+        # planner).
+        if [[ "${SNOP_DRY_RUN_APPROVAL_OK:-0}" == "1" ]]; then
+            return 0
+        fi
+        die_named SN_OP_APPROVAL_DRY_RUN "dry-run refuses approval unless SNOP_DRY_RUN_APPROVAL_OK=1"
+    fi
+    # Fetch task JSON and its comments over the unix socket.
+    local task_json comments_json
+    task_json="$(curl -sS --unix-socket "$SOCKET" -m 3 "$PLANNER_TASK_URL/$task_id" 2>/dev/null)" \
+        || die_named SN_OP_APPROVAL_TASK_READ "cannot read task $task_id from planner"
+    if ! jq -e . >/dev/null 2>&1 <<< "$task_json"; then
+        die_named SN_OP_APPROVAL_TASK_READ "planner returned non-JSON for task $task_id"
+    fi
+    comments_json="$(curl -sS --unix-socket "$SOCKET" -m 3 "$PLANNER_TASK_URL/$task_id/comments" 2>/dev/null)" \
+        || die_named SN_OP_APPROVAL_TASK_READ "cannot read comments for task $task_id"
+    if ! jq -e . >/dev/null 2>&1 <<< "$comments_json"; then
+        die_named SN_OP_APPROVAL_TASK_READ "planner returned non-JSON for task $task_id comments"
+    fi
+    # a. the owner approved it: status in_progress with approved_at set.
+    # b. the approval is fresh: approved_at within FRESHNESS_SECONDS.
+    #
+    # Only the node owner can call approve/modify/reject (the planner refuses
+    # everyone else with 403), and approve is the only decision that stamps
+    # approved_at; modify leaves it null. So in_progress + approved_at IS an
+    # owner approval, and the time it was given is approved_at itself.
+    #
+    # This replaces two checks that a real approval could never satisfy:
+    # previous_status == awaiting_approval,
+    # which the approve path does not write (the pipeline snapshots it on the
+    # block path only), and a fresh comment authored by 'admin', which stood in
+    # for "the owner approved" and named one account literally, so it failed
+    # on any node whose owner is called something else or approved without a
+    # note.
+    local status approved_at now age
+    status="$(jq -r '.status // ""' <<< "$task_json")"
+    approved_at="$(jq -r '.approved_at // ""' <<< "$task_json")"
+    if [[ "$status" != "in_progress" ]]; then
+        die_named SN_OP_APPROVAL_STATE "task $task_id not in_progress (status=$status)"
+    fi
+    if [[ -z "$approved_at" ]]; then
+        die_named SN_OP_APPROVAL_STATE "task $task_id has no approved_at: it was not approved by the owner"
+    fi
+    now="$(date +%s)"
+    age="$(date -d "$approved_at" +%s 2>/dev/null)" \
+        || die_named SN_OP_APPROVAL_STATE "cannot parse approved_at: $approved_at"
+    if (( now - age > FRESHNESS_SECONDS )); then
+        die_named SN_OP_APPROVAL_STALE "approval older than ${FRESHNESS_SECONDS}s (age $((now - age))s)"
+    fi
+    # d. task description or a comment authored by 'sysadmin' contains the
+    # exact argv (or the sha256 digest of it).
+    local argv_str argv_sha
+    argv_str="$(jq -r '. | join(" ")' <<< "$argv_json")"
+    # An empty argv would match any description (grep -F with an empty
+    # pattern matches every line), so it can never be taken as a binding.
+    [[ -n "$argv_str" ]]         || die_named SN_OP_APPROVAL_ARGV_MISMATCH "empty argv cannot be bound to an approval"
+    argv_sha="$(printf '%s' "$argv_str" | sha256sum | awk '{print $1}')"
+    local description
+    description="$(jq -r '.description // ""' <<< "$task_json")"
+    local match=0
+    if grep -qF -- "$argv_str" <<< "$description"; then
+        match=1
+    elif grep -qF -- "$argv_sha" <<< "$description"; then
+        match=1
+    else
+        local sysadmin_comments
+        sysadmin_comments="$(jq -r '[ .[]? | select(.author == "sysadmin") | .content ] | join("\n---\n")' <<< "$comments_json")"
+        if grep -qF -- "$argv_str" <<< "$sysadmin_comments"; then
+            match=1
+        elif grep -qF -- "$argv_sha" <<< "$sysadmin_comments"; then
+            match=1
+        fi
+    fi
+    if (( match == 0 )); then
+        die_named SN_OP_APPROVAL_ARGV_MISMATCH "argv not present in task description or sysadmin comments"
+    fi
+    # e. no prior sn_core.events row with entity_type='verb' entity_id=<verb>
+    # payload.approval_task_id=<task_id> outcome in ('exec_ok','exec_error').
+    local events_json
+    events_json="$(curl -sS --unix-socket "$SOCKET" -m 3 \
+        "http://localhost/api/events?event_type=sysadmin.op&entity_type=verb&entity_id=$verb&limit=200" \
+        2>/dev/null)" || die_named SN_OP_APPROVAL_EVENTS_READ "cannot query prior events for consumption check"
+    # Fail closed: an error body is valid JSON too (a 403 from core-api reads
+    # {"detail": ...}), and `.events[]?` over it counts zero prior rows, which
+    # would let one approval be replayed without limit. Only an events array
+    # is an answer.
+    if ! jq -e '.events | type == "array"' >/dev/null 2>&1 <<< "$events_json"; then
+        die_named SN_OP_APPROVAL_EVENTS_READ "events endpoint did not return an events list: $(head -c 200 <<< "$events_json")"
+    fi
+    local consumed
+    consumed="$(jq --argjson t "$task_id" '[ .events[]? | select(.payload.approval_task_id == $t) | select(.payload.outcome == "exec_ok" or .payload.outcome == "exec_error") ] | length' <<< "$events_json")"
+    if (( consumed > 0 )); then
+        die_named SN_OP_APPROVAL_CONSUMED "approval task $task_id already consumed by $consumed prior exec row(s)"
+    fi
+    return 0
+}
+
+# ---------- exec wrapper -----------------------------------------------------
+
+# Runs the underlying binary, times it, updates the event row with the outcome.
+# Args: verb tier args_json approval_task_id -- <binary> [args...]
+run_and_record() {
+    local verb="$1" tier="$2" args_json="$3" approval="$4"
+    shift 4
+    local -a cmd=("$@")
+    if [[ "$DRY_RUN" == "1" ]]; then
+        printf 'would-exec:'
+        printf ' %q' "${cmd[@]}"
+        printf '\n'
+        return 0
+    fi
+    # Emit "accepted" row FIRST. FAIL-LOUD if this cannot be recorded.
+    local accepted_body
+    accepted_body="$(_event_json "$verb" "$tier" "accepted" "" "" "" "$approval" "$args_json")"
+    if ! _emit "$accepted_body"; then
+        printf '[sn-op] SN_OP_EMIT_FAIL: cannot emit accepted event to core-api or fallback log\n' >&2
+        exit 3
+    fi
+    # Exec.
+    local start_ms end_ms elapsed rc=0
+    start_ms="$(date +%s%3N)"
+    "${cmd[@]}" || rc=$?
+    end_ms="$(date +%s%3N)"
+    elapsed=$(( end_ms - start_ms ))
+    # Emit outcome row.
+    local outcome
+    if (( rc == 0 )); then outcome="exec_ok"; else outcome="exec_error"; fi
+    local outcome_body
+    outcome_body="$(_event_json "$verb" "$tier" "$outcome" "" "$rc" "$elapsed" "$approval" "$args_json")"
+    _emit "$outcome_body" || true
+    exit $rc
+}
+
+# ---------- verb dispatch ----------------------------------------------------
+
+SN_OP_CURRENT_VERB=""
+SN_OP_CURRENT_TIER=""
+SN_OP_CURRENT_ARGS_JSON=""
+
+# Compose args_json from an array. Callers pass the array by name.
+# The nameref must not share a name with any caller's array: every verb passes
+# an array called `arr`, and `local -n arr=arr` is a circular reference that
+# bash resolves to nothing, so every event recorded args [] and the approval
+# argv check compared against an empty string, which matches any task.
+_args_json() {
+    local -n _snop_args_ref="$1"
+    local piece j="["
+    local first=1
+    for piece in "${_snop_args_ref[@]}"; do
+        if (( first )); then first=0; else j+=","; fi
+        j+="$(jq -Rn --arg s "$piece" '$s')"
+    done
+    j+="]"
+    printf '%s' "$j"
+}
+
+usage() {
+    cat <<'EOF' >&2
+usage: sn-op <verb> [args...]
+
+Tier A (reversible, no approval):
+  sn-op chgrp   [-R] <group>      <path>
+  sn-op chmod   [-R] <octal-mode> <path>
+  sn-op setfacl [-R] <acl-spec>   <path>
+  sn-op setfacl -x <acl-remove-spec> <path>
+  sn-op groupadd <group>
+  sn-op groupmod-rename <old-group> <new-group>
+  sn-op gpasswd-add <user> <group>
+  sn-op gpasswd-del <user> <group>
+  sn-op mkdir [-p] <path>
+  sn-op mv <src-path> <dst-path>
+  sn-op service-start   <unit>
+  sn-op service-restart <unit>
+  sn-op service-reload  <unit>
+  sn-op container-start   <name>
+  sn-op container-restart <name>
+  sn-op journal-tail  <unit> <lines>
+  sn-op journal-since <unit> <iso-time>
+  sn-op service-status  <unit>
+  sn-op unit-enable     <unit>      (only units unit-install put there)
+  sn-op container-status <name>
+
+Tier B (destructive, --approval <task_id> required):
+  sn-op service-stop   <unit>       --approval <task_id>
+  sn-op unit-install <unit> <source-path> <sha256> --approval <task_id>
+                                    installs a smart-node-*.service|timer; a
+                                    service must run as agent-*/smart-node-*
+  sn-op dropin-install <unit> <NN-name.conf> <source-path> <sha256> --approval <task_id>
+                                    adds a [Service] drop-in to an existing smart-node-*
+                                    unit: ReadWritePaths= under /var/lib/smart-node or
+                                    /var/log/smart-node, ReadOnlyPaths=, InaccessiblePaths=,
+                                    Restart=, RestartSec= and nothing else
+  sn-op route-install <8N-name.yml> <source-path> <sha256> --approval <task_id>
+                                    publishes an internal Traefik route: one
+                                    Host(<x>.<node internal domain>) behind vpn-only or authum
+                                    to http://host.docker.internal:PORT or 127.0.0.1:PORT
+  sn-op ufw-allow-docker <port>     --approval <task_id>
+                                    opens one TCP port, inside the range the node set in
+                                    /etc/smart-node/sn-op-app-ports, to the node's Docker
+                                    network only (where Traefik reaches the host app)
+  sn-op container-stop <name>       --approval <task_id>
+  sn-op rm  [-R] <path>             --approval <task_id>
+
+Table verbs (rows of /etc/smart-node/sn-op-verbs.json, root-owned):
+  sn-op verbs                       list them: name, tier, what it does, args
+  sn-op run <name> [args...] [--approval <task_id>]
+                                    run a row; a tier B row needs --approval
+
+Env:
+  SNOP_DRY_RUN=1   Validate and print resolved exec, do not run or emit event.
+EOF
+    exit 64
+}
+
+# --approval extractor. Sets globals EXTRACTED_APPROVAL and EXTRACTED_REST[]
+# from the argv list, stripping the --approval <id> pair. Uses globals rather
+# than a $(...) capture because bash command substitution eats NUL separators.
+EXTRACTED_APPROVAL=""
+EXTRACTED_REST=()
+extract_approval() {
+    local -a in=("$@")
+    EXTRACTED_APPROVAL=""
+    EXTRACTED_REST=()
+    local i=0 n=${#in[@]}
+    while (( i < n )); do
+        if [[ "${in[$i]}" == "--approval" ]]; then
+            (( i + 1 < n )) || die_named SN_OP_APPROVAL_TASK_ID_MISSING "--approval requires a task id"
+            EXTRACTED_APPROVAL="${in[$((i+1))]}"
+            i=$((i + 2))
+        else
+            EXTRACTED_REST+=("${in[$i]}")
+            i=$((i + 1))
+        fi
+    done
+}
+
+verb_chgrp() {
+    SN_OP_CURRENT_VERB=chgrp; SN_OP_CURRENT_TIER=A
+    local recursive=""
+    if [[ "${1:-}" == "-R" ]]; then recursive="-R"; shift; fi
+    (( $# == 2 )) || die_named SN_OP_ARG_COUNT "chgrp takes [<-R>] <group> <path> (got $# non-flag arg(s))"
+    local group="$1" path="$2"
+    validate_group "$group"
+    validate_path "$path"
+    local arr=("$recursive" "$group" "$path"); [[ -z "$recursive" ]] && arr=("$group" "$path")
+    local args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    if [[ -n "$recursive" ]]; then
+        run_and_record chgrp A "$args_json" "" /bin/chgrp -R -- "$group" "$CANONICAL_PATH"
+    else
+        run_and_record chgrp A "$args_json" "" /bin/chgrp -- "$group" "$CANONICAL_PATH"
+    fi
+}
+
+verb_chmod() {
+    SN_OP_CURRENT_VERB=chmod; SN_OP_CURRENT_TIER=A
+    local recursive=""
+    if [[ "${1:-}" == "-R" ]]; then recursive="-R"; shift; fi
+    (( $# == 2 )) || die_named SN_OP_ARG_COUNT "chmod takes [<-R>] <octal-mode> <path> (got $# non-flag arg(s))"
+    local mode="$1" path="$2"
+    validate_octal "$mode"
+    validate_path "$path"
+    local arr=("$recursive" "$mode" "$path"); [[ -z "$recursive" ]] && arr=("$mode" "$path")
+    local args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    if [[ -n "$recursive" ]]; then
+        run_and_record chmod A "$args_json" "" /bin/chmod -R -- "$mode" "$CANONICAL_PATH"
+    else
+        run_and_record chmod A "$args_json" "" /bin/chmod -- "$mode" "$CANONICAL_PATH"
+    fi
+}
+
+verb_setfacl() {
+    SN_OP_CURRENT_VERB=setfacl; SN_OP_CURRENT_TIER=A
+    local recursive="" op="-m"
+    while (( $# > 0 )); do
+        case "$1" in
+            -R) recursive="-R"; shift ;;
+            -m) op="-m"; shift ;;
+            -x) op="-x"; shift ;;
+            *)  break ;;
+        esac
+    done
+    (( $# == 2 )) || die_named SN_OP_ARG_COUNT "setfacl takes [<-R>] [<-m|-x>] <acl-spec> <path> (got $# non-flag arg(s))"
+    local spec="$1" path="$2"
+    validate_acl_spec "$spec"
+    validate_path "$path"
+    local -a arr=()
+    [[ -n "$recursive" ]] && arr+=("$recursive")
+    arr+=("$op" "$spec" "$path")
+    local args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    local -a cmd=(/usr/bin/setfacl)
+    [[ -n "$recursive" ]] && cmd+=("-R")
+    cmd+=("$op" "$spec" "--" "$CANONICAL_PATH")
+    run_and_record setfacl A "$args_json" "" "${cmd[@]}"
+}
+
+verb_groupadd() {
+    SN_OP_CURRENT_VERB=groupadd; SN_OP_CURRENT_TIER=A
+    (( $# == 1 )) || die_named SN_OP_ARG_COUNT "groupadd takes <group> (got $#)"
+    local group="$1"
+    validate_group "$group"
+    local arr=("$group") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record groupadd A "$args_json" "" /usr/sbin/groupadd -- "$group"
+}
+
+verb_groupmod_rename() {
+    SN_OP_CURRENT_VERB=groupmod-rename; SN_OP_CURRENT_TIER=A
+    (( $# == 2 )) || die_named SN_OP_ARG_COUNT "groupmod-rename takes <old-group> <new-group> (got $#)"
+    local old="$1" new="$2"
+    validate_group "$old"
+    validate_group "$new"
+    local arr=("$old" "$new") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record groupmod-rename A "$args_json" "" /usr/sbin/groupmod -n "$new" "$old"
+}
+
+verb_gpasswd_add() {
+    SN_OP_CURRENT_VERB=gpasswd-add; SN_OP_CURRENT_TIER=A
+    (( $# == 2 )) || die_named SN_OP_ARG_COUNT "gpasswd-add takes <user> <group> (got $#)"
+    local user="$1" group="$2"
+    validate_user "$user"
+    validate_group "$group"
+    local arr=("$user" "$group") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record gpasswd-add A "$args_json" "" /usr/bin/gpasswd -a "$user" "$group"
+}
+
+verb_gpasswd_del() {
+    SN_OP_CURRENT_VERB=gpasswd-del; SN_OP_CURRENT_TIER=A
+    (( $# == 2 )) || die_named SN_OP_ARG_COUNT "gpasswd-del takes <user> <group> (got $#)"
+    local user="$1" group="$2"
+    validate_user "$user"
+    validate_group "$group"
+    local arr=("$user" "$group") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record gpasswd-del A "$args_json" "" /usr/bin/gpasswd -d "$user" "$group"
+}
+
+verb_mkdir() {
+    SN_OP_CURRENT_VERB=mkdir; SN_OP_CURRENT_TIER=A
+    local parents=""
+    if [[ "${1:-}" == "-p" ]]; then parents="-p"; shift; fi
+    (( $# == 1 )) || die_named SN_OP_ARG_COUNT "mkdir takes [-p] <path> (got $# non-flag arg(s))"
+    local path="$1"
+    validate_path "$path"
+    local arr=("$parents" "$path"); [[ -z "$parents" ]] && arr=("$path")
+    local args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    if [[ -n "$parents" ]]; then
+        run_and_record mkdir A "$args_json" "" /bin/mkdir -p -- "$CANONICAL_PATH"
+    else
+        run_and_record mkdir A "$args_json" "" /bin/mkdir -- "$CANONICAL_PATH"
+    fi
+}
+
+verb_mv() {
+    SN_OP_CURRENT_VERB=mv; SN_OP_CURRENT_TIER=A
+    (( $# == 2 )) || die_named SN_OP_ARG_COUNT "mv takes <src-path> <dst-path> (got $#)"
+    local src="$1" dst="$2"
+    validate_path "$src"; local csrc="$CANONICAL_PATH"
+    validate_path "$dst"; local cdst="$CANONICAL_PATH"
+    local arr=("$src" "$dst") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record mv A "$args_json" "" /bin/mv -- "$csrc" "$cdst"
+}
+
+_verb_service() {
+    local action="$1"; shift
+    SN_OP_CURRENT_VERB="service-$action"; SN_OP_CURRENT_TIER=A
+    (( $# == 1 )) || die_named SN_OP_ARG_COUNT "service-$action takes <unit> (got $#)"
+    local unit="$1"
+    validate_unit "$unit"
+    local arr=("$unit") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record "service-$action" A "$args_json" "" /bin/systemctl "$action" -- "$unit"
+}
+
+verb_service_start()   { _verb_service start   "$@"; }
+verb_service_restart() { _verb_service restart "$@"; }
+verb_service_reload()  { _verb_service reload  "$@"; }
+verb_service_status()  { _verb_service status  "$@"; }
+
+_verb_container() {
+    local action="$1"; shift
+    SN_OP_CURRENT_VERB="container-$action"; SN_OP_CURRENT_TIER=A
+    (( $# == 1 )) || die_named SN_OP_ARG_COUNT "container-$action takes <name> (got $#)"
+    local name="$1"
+    validate_container "$name"
+    local arr=("$name") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record "container-$action" A "$args_json" "" /usr/bin/docker "$action" -- "$name"
+}
+
+verb_container_start()   { _verb_container start   "$@"; }
+verb_container_restart() { _verb_container restart "$@"; }
+
+verb_container_status() {
+    SN_OP_CURRENT_VERB=container-status; SN_OP_CURRENT_TIER=A
+    (( $# == 1 )) || die_named SN_OP_ARG_COUNT "container-status takes <name> (got $#)"
+    local name="$1"
+    validate_container "$name"
+    local arr=("$name") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record container-status A "$args_json" "" /usr/bin/docker inspect --format='{{.State.Status}}' -- "$name"
+}
+
+verb_journal_tail() {
+    SN_OP_CURRENT_VERB=journal-tail; SN_OP_CURRENT_TIER=A
+    (( $# == 2 )) || die_named SN_OP_ARG_COUNT "journal-tail takes <unit> <lines> (got $#)"
+    local unit="$1" lines="$2"
+    validate_unit "$unit"
+    validate_lines "$lines"
+    local arr=("$unit" "$lines") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record journal-tail A "$args_json" "" /bin/journalctl -u "$unit" -n "$lines"
+}
+
+verb_journal_since() {
+    SN_OP_CURRENT_VERB=journal-since; SN_OP_CURRENT_TIER=A
+    (( $# == 2 )) || die_named SN_OP_ARG_COUNT "journal-since takes <unit> <iso-time> (got $#)"
+    local unit="$1" when="$2"
+    validate_unit "$unit"
+    validate_iso_time "$when"
+    local arr=("$unit" "$when") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record journal-since A "$args_json" "" /bin/journalctl -u "$unit" --since "$when"
+}
+
+# Tier B ---------------------------------------------------------------------
+
+verb_service_stop() {
+    SN_OP_CURRENT_VERB=service-stop; SN_OP_CURRENT_TIER=B
+    extract_approval "$@"
+    local approval="$EXTRACTED_APPROVAL"
+    local -a rest=("${EXTRACTED_REST[@]}")
+    [[ -n "$approval" ]] || die_named SN_OP_APPROVAL_REQUIRED "service-stop requires --approval <task_id>"
+    (( ${#rest[@]} == 1 )) || die_named SN_OP_ARG_COUNT "service-stop takes <unit> (got ${#rest[@]})"
+    local unit="${rest[0]}"
+    validate_unit "$unit"
+    local arr=("$unit") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    verify_approval "$approval" service-stop "$args_json"
+    run_and_record service-stop B "$args_json" "$approval" /bin/systemctl stop -- "$unit"
+}
+
+verb_container_stop() {
+    SN_OP_CURRENT_VERB=container-stop; SN_OP_CURRENT_TIER=B
+    extract_approval "$@"
+    local approval="$EXTRACTED_APPROVAL"
+    local -a rest=("${EXTRACTED_REST[@]}")
+    [[ -n "$approval" ]] || die_named SN_OP_APPROVAL_REQUIRED "container-stop requires --approval <task_id>"
+    (( ${#rest[@]} == 1 )) || die_named SN_OP_ARG_COUNT "container-stop takes <name> (got ${#rest[@]})"
+    local name="${rest[0]}"
+    validate_container "$name"
+    local arr=("$name") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    verify_approval "$approval" container-stop "$args_json"
+    run_and_record container-stop B "$args_json" "$approval" /usr/bin/docker stop -- "$name"
+}
+
+verb_rm() {
+    SN_OP_CURRENT_VERB=rm; SN_OP_CURRENT_TIER=B
+    extract_approval "$@"
+    local approval="$EXTRACTED_APPROVAL"
+    local -a rest=("${EXTRACTED_REST[@]}")
+    [[ -n "$approval" ]] || die_named SN_OP_APPROVAL_REQUIRED "rm requires --approval <task_id>"
+    local recursive=""
+    if [[ "${rest[0]:-}" == "-R" ]]; then recursive="-R"; rest=("${rest[@]:1}"); fi
+    (( ${#rest[@]} == 1 )) || die_named SN_OP_ARG_COUNT "rm takes [<-R>] <path> (got ${#rest[@]} non-flag arg(s))"
+    local path="${rest[0]}"
+    validate_path "$path"
+    local arr=("$recursive" "$path"); [[ -z "$recursive" ]] && arr=("$path")
+    local args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    verify_approval "$approval" rm "$args_json"
+    if [[ -n "$recursive" ]]; then
+        run_and_record rm B "$args_json" "$approval" /bin/rm -rf -- "$CANONICAL_PATH"
+    else
+        run_and_record rm B "$args_json" "$approval" /bin/rm -- "$CANONICAL_PATH"
+    fi
+}
+
+# ---------- unit files -------------------------------------------------------
+#
+# A unit file is code that systemd runs, by default as root. The unit NAME is
+# therefore not the boundary; the CONTENT is. unit-install copies the source
+# once into a private root-only directory, then checks the sha256, the shape
+# and the privileges of the copy, so nothing can change between the check and
+# the install.
+
+# _unit_check_content <file> <unit>: named refusal unless the file is safe to
+# install under that unit name.
+_unit_check_content() {
+    local f="$1" unit="$2" size
+    size="$(stat -c %s -- "$f")"
+    (( size > 0 && size <= UNIT_MAX_BYTES )) \
+        || die_named SN_OP_UNIT_SIZE "unit file must be 1..$UNIT_MAX_BYTES bytes, got $size"
+    # A trailing backslash joins lines, which hides a prefix such as + from the
+    # per-line checks below. No legitimate monitor unit needs it.
+    if grep -q '\\$' -- "$f"; then
+        die_named SN_OP_UNIT_CONTINUATION "line continuation (trailing backslash) is not allowed"
+    fi
+    if [[ "$unit" == *.timer ]]; then
+        # A timer starts another unit; it may only start one we are allowed to name.
+        local target
+        while IFS= read -r target; do
+            target="${target%"${target##*[![:space:]]}"}"
+            [[ "$target" =~ $RE_UNIT ]] \
+                || die_named SN_OP_UNIT_TIMER_TARGET "timer Unit= must match $RE_UNIT, got: $target"
+        done < <(sed -n 's/^[[:space:]]*Unit=[[:space:]]*//p' -- "$f")
+        return 0
+    fi
+    # .service: every User= must be an agent or service account, and there must
+    # be at least one, because no User= means root.
+    local -a users=()
+    mapfile -t users < <(sed -n 's/^[[:space:]]*User=[[:space:]]*//p' -- "$f")
+    (( ${#users[@]} >= 1 )) \
+        || die_named SN_OP_UNIT_RUNS_AS_ROOT "service has no User=, so it would run as root"
+    local u
+    for u in "${users[@]}"; do
+        u="${u%"${u##*[![:space:]]}"}"
+        [[ "$u" =~ $RE_UNIT_USER ]] \
+            || die_named SN_OP_UNIT_RUNS_AS_ROOT "User= must match $RE_UNIT_USER, got: $u"
+    done
+    # + and ! prefixes make systemd run that command with full privileges,
+    # ignoring User=. Prefixes combine (-+, @!), so look past the others.
+    if grep -Eq '^[[:space:]]*Exec[A-Za-z]*=[[:space:]]*[-@:]*[+!]' -- "$f"; then
+        die_named SN_OP_UNIT_RUNS_AS_ROOT "an Exec line starts with + or !, which runs it as root"
+    fi
+    if grep -Eiq '^[[:space:]]*(PermissionsStartOnly|AmbientCapabilities)[[:space:]]*=' -- "$f"; then
+        die_named SN_OP_UNIT_ELEVATES "PermissionsStartOnly= and AmbientCapabilities= are not allowed"
+    fi
+    return 0
+}
+
+# _unit_exists <unit>: 0 if a unit of that name is already known to systemd on disk.
+_unit_exists() {
+    local d
+    for d in "$UNIT_DIR" /lib/systemd/system /usr/lib/systemd/system; do
+        [[ -e "$d/$1" || -L "$d/$1" ]] && return 0
+    done
+    return 1
+}
+
+# _unit_ours <unit>: 0 if the unit in UNIT_DIR carries our marker.
+_unit_ours() {
+    [[ -f "$UNIT_DIR/$1" && ! -L "$UNIT_DIR/$1" ]] \
+        && [[ "$(head -n1 -- "$UNIT_DIR/$1")" == "$UNIT_MARKER" ]]
+}
+
+# Runs as the exec step of unit-install (called through run_and_record).
+# Args: <private-copy> <unit>
+_do_unit_install() {
+    local copy="$1" unit="$2" tmp
+    tmp="$(mktemp -- "$UNIT_DIR/.snop-unit.XXXXXX")" || return 1
+    { printf '%s\n' "$UNIT_MARKER"; cat -- "$copy"; } > "$tmp" || { rm -f -- "$tmp"; return 1; }
+    chown root:root -- "$tmp" && chmod 0644 -- "$tmp" || { rm -f -- "$tmp"; return 1; }
+    mv -T -- "$tmp" "$UNIT_DIR/$unit" || { rm -f -- "$tmp"; return 1; }
+    /bin/systemctl daemon-reload
+}
+
+verb_unit_install() {
+    SN_OP_CURRENT_VERB=unit-install; SN_OP_CURRENT_TIER=B
+    extract_approval "$@"
+    local approval="$EXTRACTED_APPROVAL"
+    local -a rest=("${EXTRACTED_REST[@]}")
+    [[ -n "$approval" ]] || die_named SN_OP_APPROVAL_REQUIRED "unit-install requires --approval <task_id>"
+    (( ${#rest[@]} == 3 )) || die_named SN_OP_ARG_COUNT "unit-install takes <unit> <source-path> <sha256> (got ${#rest[@]})"
+    local unit="${rest[0]}" src="${rest[1]}" want="${rest[2]}"
+    validate_unit "$unit"
+    [[ "$unit" == *.service || "$unit" == *.timer ]] \
+        || die_named SN_OP_UNIT_SUFFIX "unit must end in .service or .timer, got: $unit"
+    [[ "$want" =~ $RE_SHA256 ]] || die_named SN_OP_ARG_SHA256 "sha256 must match $RE_SHA256, got: $want"
+    validate_path "$src"
+    [[ -f "$CANONICAL_PATH" ]] || die_named SN_OP_UNIT_SOURCE "source is not a regular file: $src"
+    local arr=("$unit" "$src" "$want") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    # One read of the source, into a directory only root can enter.
+    local priv; priv="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf -- '$priv'" EXIT
+    cat -- "$CANONICAL_PATH" > "$priv/unit" || die_named SN_OP_UNIT_SOURCE "cannot read $src"
+    local got; got="$(sha256sum -- "$priv/unit" | awk '{print $1}')"
+    [[ "$got" == "$want" ]] || die_named SN_OP_UNIT_SHA_MISMATCH "sha256 of $src is $got, argv says $want"
+    _unit_check_content "$priv/unit" "$unit"
+    # Never replace a unit the product ships or one somebody else installed:
+    # only a unit that already carries our marker may be replaced.
+    if _unit_exists "$unit" && ! _unit_ours "$unit"; then
+        die_named SN_OP_UNIT_EXISTS "$unit already exists and was not installed by unit-install"
+    fi
+    verify_approval "$approval" unit-install "$args_json"
+    run_and_record unit-install B "$args_json" "$approval" _do_unit_install "$priv/unit" "$unit"
+}
+
+verb_unit_enable() {
+    SN_OP_CURRENT_VERB=unit-enable; SN_OP_CURRENT_TIER=A
+    (( $# == 1 )) || die_named SN_OP_ARG_COUNT "unit-enable takes <unit> (got $#)"
+    local unit="$1"
+    validate_unit "$unit"
+    [[ "$unit" == *.service || "$unit" == *.timer ]] \
+        || die_named SN_OP_UNIT_SUFFIX "unit must end in .service or .timer, got: $unit"
+    # Only what unit-install put there: enabling a shipped unit is not this verb's job.
+    _unit_ours "$unit" || die_named SN_OP_UNIT_NOT_OURS "$unit was not installed by unit-install"
+    local arr=("$unit") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    run_and_record unit-enable A "$args_json" "" /bin/systemctl enable --now -- "$unit"
+}
+
+# ---------- drop-ins -----------------------------------------------------------
+#
+# A drop-in changes how an existing unit runs, so what it may say is an
+# allowlist, not a list of things to refuse. See the header for the keys.
+
+_dropin_check_content() {
+    local f="$1" size line key val p section=0
+    local -a parts=()
+    size="$(stat -c %s -- "$f")"
+    (( size > 0 && size <= UNIT_MAX_BYTES )) \
+        || die_named SN_OP_UNIT_SIZE "drop-in must be 1..$UNIT_MAX_BYTES bytes, got $size"
+    if grep -q '\\$' -- "$f"; then
+        die_named SN_OP_DROPIN_CONTINUATION "line continuation (trailing backslash) is not allowed"
+    fi
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -z "$line" || "${line:0:1}" == "#" || "${line:0:1}" == ";" ]] && continue
+        if [[ "${line:0:1}" == "[" ]]; then
+            [[ "$line" == "[Service]" ]] \
+                || die_named SN_OP_DROPIN_SECTION "only a [Service] section is allowed, got: $line"
+            section=1
+            continue
+        fi
+        (( section == 1 )) || die_named SN_OP_DROPIN_SECTION "settings must come under [Service]: $line"
+        [[ "$line" =~ $RE_DROPIN_LINE ]] \
+            || die_named SN_OP_DROPIN_KEY "malformed line (an empty value is not allowed): $line"
+        key="${BASH_REMATCH[1]}"; val="${BASH_REMATCH[2]}"
+        read -ra parts <<< "$val"
+        case "$key" in
+            ReadWritePaths)
+                for p in "${parts[@]}"; do
+                    [[ "$p" =~ $RE_DROPIN_RWPATH && "$p" != *..* ]] \
+                        || die_named SN_OP_DROPIN_PATH "ReadWritePaths= may only name a path under /var/lib/smart-node or /var/log/smart-node, got: $p"
+                done ;;
+            ReadOnlyPaths|InaccessiblePaths)
+                for p in "${parts[@]}"; do
+                    [[ "$p" =~ $RE_DROPIN_ANYPATH && "$p" != *..* ]] \
+                        || die_named SN_OP_DROPIN_PATH "$key= needs absolute paths without '..', got: $p"
+                done ;;
+            Restart)
+                [[ "$val" =~ ^(no|on-failure|on-abnormal|always)$ ]] \
+                    || die_named SN_OP_DROPIN_KEY "Restart= must be no, on-failure, on-abnormal or always, got: $val" ;;
+            RestartSec)
+                [[ "$val" =~ ^[0-9]{1,4}(s|min)?$ ]] \
+                    || die_named SN_OP_DROPIN_KEY "RestartSec= must be like 5, 5s or 2min, got: $val" ;;
+            *)
+                die_named SN_OP_DROPIN_KEY "$key= is not allowed in a drop-in installed this way" ;;
+        esac
+    done < "$f"
+    (( section == 1 )) || die_named SN_OP_DROPIN_SECTION "the drop-in has no [Service] section"
+}
+
+# _dropin_ours <unit> <name>: 0 if that drop-in file carries our marker.
+_dropin_ours() {
+    local f="$UNIT_DIR/$1.d/$2"
+    [[ -f "$f" && ! -L "$f" ]] && [[ "$(head -n1 -- "$f")" == "$DROPIN_MARKER" ]]
+}
+
+# Exec step of dropin-install. Args: <private-copy> <unit> <name>
+_do_dropin_install() {
+    local copy="$1" unit="$2" name="$3" d tmp
+    d="$UNIT_DIR/$unit.d"
+    /usr/bin/install -m 0755 -d -- "$d" || return 1
+    tmp="$(mktemp -- "$d/.snop-dropin.XXXXXX")" || return 1
+    { printf '%s\n' "$DROPIN_MARKER"; cat -- "$copy"; } > "$tmp" || { rm -f -- "$tmp"; return 1; }
+    chown root:root -- "$tmp" && chmod 0644 -- "$tmp" || { rm -f -- "$tmp"; return 1; }
+    mv -T -- "$tmp" "$d/$name" || { rm -f -- "$tmp"; return 1; }
+    /bin/systemctl daemon-reload
+}
+
+verb_dropin_install() {
+    SN_OP_CURRENT_VERB=dropin-install; SN_OP_CURRENT_TIER=B
+    extract_approval "$@"
+    local approval="$EXTRACTED_APPROVAL"
+    local -a rest=("${EXTRACTED_REST[@]}")
+    [[ -n "$approval" ]] || die_named SN_OP_APPROVAL_REQUIRED "dropin-install requires --approval <task_id>"
+    (( ${#rest[@]} == 4 )) \
+        || die_named SN_OP_ARG_COUNT "dropin-install takes <unit> <NN-name.conf> <source-path> <sha256> (got ${#rest[@]})"
+    local unit="${rest[0]}" name="${rest[1]}" src="${rest[2]}" want="${rest[3]}"
+    validate_unit "$unit"
+    [[ "$unit" == *.service || "$unit" == *.timer ]] \
+        || die_named SN_OP_UNIT_SUFFIX "unit must end in .service or .timer, got: $unit"
+    [[ "$name" =~ $RE_DROPIN_NAME ]] \
+        || die_named SN_OP_ARG_DROPIN_NAME "drop-in name must match $RE_DROPIN_NAME, got: $name"
+    [[ "$want" =~ $RE_SHA256 ]] || die_named SN_OP_ARG_SHA256 "sha256 must match $RE_SHA256, got: $want"
+    validate_path "$src"
+    [[ -f "$CANONICAL_PATH" ]] || die_named SN_OP_UNIT_SOURCE "source is not a regular file: $src"
+    local arr=("$unit" "$name" "$src" "$want") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    local priv; priv="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf -- '$priv'" EXIT
+    cat -- "$CANONICAL_PATH" > "$priv/dropin" || die_named SN_OP_UNIT_SOURCE "cannot read $src"
+    local got; got="$(sha256sum -- "$priv/dropin" | awk '{print $1}')"
+    [[ "$got" == "$want" ]] || die_named SN_OP_UNIT_SHA_MISMATCH "sha256 of $src is $got, argv says $want"
+    _dropin_check_content "$priv/dropin"
+    _unit_exists "$unit" || die_named SN_OP_DROPIN_NO_UNIT "$unit does not exist; a drop-in only changes an existing unit"
+    [[ ! -L "$UNIT_DIR/$unit.d" ]] || die_named SN_OP_DROPIN_EXISTS "$unit.d is a symlink"
+    if [[ -e "$UNIT_DIR/$unit.d/$name" || -L "$UNIT_DIR/$unit.d/$name" ]] && ! _dropin_ours "$unit" "$name"; then
+        die_named SN_OP_DROPIN_EXISTS "$unit.d/$name already exists and was not installed by dropin-install"
+    fi
+    verify_approval "$approval" dropin-install "$args_json"
+    run_and_record dropin-install B "$args_json" "$approval" _do_dropin_install "$priv/dropin" "$unit" "$name"
+}
+
+# ---------- internal routes ----------------------------------------------------
+#
+# A route changes what the public front door of the node answers, so what a file
+# may say is an allowlist, checked by python (yaml.safe_load) on the private copy.
+
+read -r -d '' ROUTE_CHECK_PY <<'PYEOF' || true
+import os, re, sys
+import yaml
+
+path, ddir, myname, domain = sys.argv[1:5]
+ACCESS = {"vpn-only@file", "smart-node-auth@docker"}
+RE_NAME = re.compile(r"^smart-node-[a-z0-9-]{1,50}$")
+RE_RULE = re.compile(r"^Host\(`([a-z0-9][a-z0-9-]{0,40})\." + re.escape(domain) + r"`\)$")
+RE_URL = re.compile(r"^http://(host\.docker\.internal|127\.0\.0\.1):([0-9]{4,5})/?$")
+
+def bad(msg):
+    print(msg)
+    sys.exit(1)
+
+try:
+    doc = yaml.safe_load(open(path))
+except Exception as e:
+    bad("not valid YAML: %s" % e)
+if not isinstance(doc, dict) or set(doc) != {"http"}:
+    bad("the top level must be exactly: http")
+http = doc["http"]
+if not isinstance(http, dict) or set(http) != {"routers", "services"}:
+    bad("http must hold exactly routers and services")
+routers, services = http["routers"], http["services"]
+if not isinstance(routers, dict) or not routers or not isinstance(services, dict) or not services:
+    bad("routers and services must be non-empty mappings")
+
+hosts = []
+for name, r in routers.items():
+    if not RE_NAME.match(str(name)):
+        bad("router name %s must match %s" % (name, RE_NAME.pattern))
+    if not isinstance(r, dict) or not set(r) <= {"rule", "entryPoints", "service", "middlewares", "tls"}:
+        bad("router %s may only have rule, entryPoints, service, middlewares, tls" % name)
+    m = RE_RULE.match(str(r.get("rule", "")))
+    if not m:
+        bad("router %s rule must be exactly Host(`<name>.%s`)" % (name, domain))
+    hosts.append(m.group(0))
+    if r.get("entryPoints") != ["websecure"]:
+        bad("router %s entryPoints must be [websecure]" % name)
+    if r.get("tls") != {}:
+        bad("router %s tls must be {}" % name)
+    if r.get("service") not in services:
+        bad("router %s names a service this file does not define" % name)
+    mw = r.get("middlewares")
+    if not isinstance(mw, list) or not mw or not set(mw) <= ACCESS:
+        bad("router %s middlewares must be a non-empty list from %s" % (name, sorted(ACCESS)))
+
+for name, sv in services.items():
+    if not RE_NAME.match(str(name)):
+        bad("service name %s must match %s" % (name, RE_NAME.pattern))
+    lb = sv.get("loadBalancer") if isinstance(sv, dict) and set(sv) == {"loadBalancer"} else None
+    if not isinstance(lb, dict) or not set(lb) <= {"servers", "passHostHeader"}:
+        bad("service %s must be only a loadBalancer with servers (and passHostHeader)" % name)
+    if "passHostHeader" in lb and not isinstance(lb["passHostHeader"], bool):
+        bad("service %s passHostHeader must be true or false" % name)
+    servers = lb.get("servers")
+    if not isinstance(servers, list) or not servers:
+        bad("service %s needs at least one server" % name)
+    for sr in servers:
+        m = RE_URL.match(str(sr.get("url", ""))) if isinstance(sr, dict) and set(sr) == {"url"} else None
+        if not m or not 1024 <= int(m.group(2)) <= 65535:
+            bad("service %s server must be {url: http://host.docker.internal|127.0.0.1:PORT/} with PORT 1024..65535" % name)
+
+for fn in sorted(os.listdir(ddir)):
+    if fn == myname or not os.path.isfile(os.path.join(ddir, fn)):
+        continue
+    try:
+        text = open(os.path.join(ddir, fn)).read()
+    except OSError:
+        continue
+    for h in hosts:
+        if h in text:
+            bad("%s is already routed by %s" % (h, fn))
+    for name in list(routers) + list(services):
+        if re.search(r"(?m)^\s+['\"]?%s['\"]?\s*:" % re.escape(str(name)), text):
+            bad("the name %s is already used in %s" % (name, fn))
+PYEOF
+
+# The node's internal domain, from its root-owned file. No file, no domain, no route.
+_route_domain() {
+    local f="$ROUTE_DOMAIN_FILE" d
+    [[ -f "$f" && ! -L "$f" ]] \
+        || die_named SN_OP_ROUTE_DOMAIN "no internal domain configured: $f must hold one line, the node's internal domain"
+    _trusted_path "$f" || die_named SN_OP_ROUTE_DOMAIN "$f must be owned by root and writable by no one else"
+    d="$(head -n1 -- "$f" | tr -d '[:space:]')"
+    [[ "$d" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]] \
+        || die_named SN_OP_ROUTE_DOMAIN "$f does not hold a domain name"
+    printf '%s' "$d"
+}
+
+_route_check_content() {
+    local f="$1" size msg
+    size="$(stat -c %s -- "$f")"
+    (( size > 0 && size <= UNIT_MAX_BYTES )) \
+        || die_named SN_OP_ROUTE_SIZE "route file must be 1..$UNIT_MAX_BYTES bytes, got $size"
+    msg="$(/usr/bin/python3 -I -c "$ROUTE_CHECK_PY" "$f" "$TRAEFIK_DIR" "$2" "$3" 2>&1)" \
+        || die_named SN_OP_ROUTE_CONTENT "${msg//$'\n'/ }"
+}
+
+_route_ours() {
+    local f="$TRAEFIK_DIR/$1"
+    [[ -f "$f" && ! -L "$f" ]] && [[ "$(head -n1 -- "$f")" == "$ROUTE_MARKER" ]]
+}
+
+# Exec step of route-install. Args: <private-copy> <name>
+_do_route_install() {
+    local copy="$1" name="$2" tmp
+    tmp="$(mktemp -- "$TRAEFIK_DIR/.snop-route.XXXXXX.tmp")" || return 1
+    { printf '%s\n' "$ROUTE_MARKER"; cat -- "$copy"; } > "$tmp" || { rm -f -- "$tmp"; return 1; }
+    chown root:smart-node -- "$tmp" && chmod 0640 -- "$tmp" || { rm -f -- "$tmp"; return 1; }
+    mv -T -- "$tmp" "$TRAEFIK_DIR/$name" || { rm -f -- "$tmp"; return 1; }
+}
+
+verb_route_install() {
+    SN_OP_CURRENT_VERB=route-install; SN_OP_CURRENT_TIER=B
+    extract_approval "$@"
+    local approval="$EXTRACTED_APPROVAL"
+    local -a rest=("${EXTRACTED_REST[@]}")
+    [[ -n "$approval" ]] || die_named SN_OP_APPROVAL_REQUIRED "route-install requires --approval <task_id>"
+    (( ${#rest[@]} == 3 )) \
+        || die_named SN_OP_ARG_COUNT "route-install takes <8N-name.yml> <source-path> <sha256> (got ${#rest[@]})"
+    local name="${rest[0]}" src="${rest[1]}" want="${rest[2]}"
+    [[ "$name" =~ $RE_ROUTE_NAME ]] \
+        || die_named SN_OP_ARG_ROUTE_NAME "route name must match $RE_ROUTE_NAME, got: $name"
+    [[ "$want" =~ $RE_SHA256 ]] || die_named SN_OP_ARG_SHA256 "sha256 must match $RE_SHA256, got: $want"
+    validate_path "$src"
+    [[ -f "$CANONICAL_PATH" ]] || die_named SN_OP_UNIT_SOURCE "source is not a regular file: $src"
+    local arr=("$name" "$src" "$want") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    local priv; priv="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf -- '$priv'" EXIT
+    cat -- "$CANONICAL_PATH" > "$priv/route" || die_named SN_OP_UNIT_SOURCE "cannot read $src"
+    local got; got="$(sha256sum -- "$priv/route" | awk '{print $1}')"
+    [[ "$got" == "$want" ]] || die_named SN_OP_UNIT_SHA_MISMATCH "sha256 of $src is $got, argv says $want"
+    [[ -d "$TRAEFIK_DIR" && ! -L "$TRAEFIK_DIR" ]] || die_named SN_OP_ROUTE_DIR "$TRAEFIK_DIR is not a directory"
+    if [[ -e "$TRAEFIK_DIR/$name" || -L "$TRAEFIK_DIR/$name" ]] && ! _route_ours "$name"; then
+        die_named SN_OP_ROUTE_EXISTS "$name already exists and was not installed by route-install"
+    fi
+    # Read here, not inside the $(...) of the check: a refusal in a subshell would not stop the verb.
+    local domain; domain="$(_route_domain)"
+    _route_check_content "$priv/route" "$name" "$domain"
+    verify_approval "$approval" route-install "$args_json"
+    run_and_record route-install B "$args_json" "$approval" _do_route_install "$priv/route" "$name"
+}
+
+# ---------- app ports ----------------------------------------------------------
+
+# The Docker subnet of this node: a private range, from routing.env.
+_docker_subnet() {
+    local f="$ROUTING_ENV" v
+    [[ -f "$f" && ! -L "$f" ]] || die_named SN_OP_UFW_CONFIG "no routing contract at $f"
+    _trusted_path "$f" || die_named SN_OP_UFW_CONFIG "$f must be owned by root and writable by no one else"
+    v="$(sed -n 's/^SMART_NODE_DOCKER_SUBNET=//p' "$f" | head -n1 | tr -d '[:space:]')"
+    [[ "$v" =~ ^(10(\.[0-9]{1,3}){3}/([89]|1[0-9]|2[0-4])|172\.(1[6-9]|2[0-9]|3[01])(\.[0-9]{1,3}){2}/(1[2-9]|2[0-4])|192\.168(\.[0-9]{1,3}){2}/(1[6-9]|2[0-4]))$ ]] \
+        || die_named SN_OP_UFW_CONFIG "SMART_NODE_DOCKER_SUBNET in $f is not a private subnet"
+    printf '%s' "$v"
+}
+
+# The ports an app may use: LOW-HIGH, from a root-owned file. No file, no verb.
+_app_port_range() {
+    local f="$APP_PORTS_FILE" v
+    [[ -f "$f" && ! -L "$f" ]] \
+        || die_named SN_OP_UFW_CONFIG "no app port range configured: $f must hold one line, LOW-HIGH"
+    _trusted_path "$f" || die_named SN_OP_UFW_CONFIG "$f must be owned by root and writable by no one else"
+    v="$(head -n1 -- "$f" | tr -d '[:space:]')"
+    [[ "$v" =~ ^([0-9]{4,5})-([0-9]{4,5})$ ]] \
+        || die_named SN_OP_UFW_CONFIG "$f does not hold LOW-HIGH"
+    (( BASH_REMATCH[1] >= 1024 && BASH_REMATCH[1] <= BASH_REMATCH[2] && BASH_REMATCH[2] <= 65535 )) \
+        || die_named SN_OP_UFW_CONFIG "$f must hold a range inside 1024-65535"
+    printf '%s' "$v"
+}
+
+# Exec step of ufw-allow-docker. Args: <subnet> <port>
+_do_ufw_allow_docker() {
+    /usr/sbin/ufw allow from "$1" to any port "$2" proto tcp comment "sn-op: app port $2"
+}
+
+verb_ufw_allow_docker() {
+    SN_OP_CURRENT_VERB=ufw-allow-docker; SN_OP_CURRENT_TIER=B
+    extract_approval "$@"
+    local approval="$EXTRACTED_APPROVAL"
+    local -a rest=("${EXTRACTED_REST[@]}")
+    [[ -n "$approval" ]] || die_named SN_OP_APPROVAL_REQUIRED "ufw-allow-docker requires --approval <task_id>"
+    (( ${#rest[@]} == 1 )) || die_named SN_OP_ARG_COUNT "ufw-allow-docker takes <port> (got ${#rest[@]})"
+    local port="${rest[0]}"
+    [[ "$port" =~ ^[1-9][0-9]{3,4}$ ]] || die_named SN_OP_ARG_PORT "port must be a number, got: $port"
+    local arr=("$port") args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    local range subnet
+    range="$(_app_port_range)"
+    subnet="$(_docker_subnet)"
+    (( port >= ${range%-*} && port <= ${range#*-} )) \
+        || die_named SN_OP_UFW_PORT "port $port is outside the range $range this node lets an app open"
+    verify_approval "$approval" ufw-allow-docker "$args_json"
+    run_and_record ufw-allow-docker B "$args_json" "$approval" _do_ufw_allow_docker "$subnet" "$port"
+}
+
+# ---------- table verbs (run, verbs) -------------------------------------------
+
+# Who must own a trusted file: root, or (dry run on a fixture table only) the
+# user running the test.
+_want_owner() {
+    if [[ "$DRY_RUN" == "1" && ( -n "${SNOP_DRY_RUN_VERB_TABLE:-}" || -n "${SNOP_DRY_RUN_ROUTE_DOMAIN_FILE:-}" \
+            || -n "${SNOP_DRY_RUN_ROUTING_ENV:-}" || -n "${SNOP_DRY_RUN_APP_PORTS_FILE:-}" ) ]]; then id -u; else echo 0; fi
+}
+
+# Owned by the wanted user and not writable by group or others.
+_trusted_path() {
+    local p="$1" owner mode
+    owner="$(stat -c '%u' -- "$p" 2>/dev/null)" || return 1
+    mode="$(stat -c '%a' -- "$p" 2>/dev/null)" || return 1
+    [[ "$owner" == "$(_want_owner)" ]] || return 1
+    (( (8#$mode & 8#022) == 0 ))
+}
+
+# Where a table row may point its executable.
+_exec_allowed() {
+    local p="$1"
+    case "$p" in
+        /opt/smart-node/*|/usr/local/sbin/*) return 0 ;;
+    esac
+    if [[ "$DRY_RUN" == "1" && -n "${SNOP_DRY_RUN_VERB_TABLE:-}" ]]; then
+        [[ "$p" == "$(dirname "$SNOP_DRY_RUN_VERB_TABLE")"/* ]] && return 0
+    fi
+    return 1
+}
+
+_table_check() {
+    [[ -f "$VERB_TABLE" ]] || die_named SN_OP_RUN_NO_TABLE "no verb table at $VERB_TABLE"
+    _trusted_path "$VERB_TABLE" \
+        || die_named SN_OP_RUN_TABLE_UNTRUSTED "$VERB_TABLE must be owned by root and not writable by group or others"
+    _trusted_path "$(dirname "$VERB_TABLE")" \
+        || die_named SN_OP_RUN_TABLE_UNTRUSTED "the directory of $VERB_TABLE must be owned by root and not writable by group or others"
+    jq -e '.verbs | type == "object"' "$VERB_TABLE" >/dev/null 2>&1 \
+        || die_named SN_OP_RUN_TABLE_PARSE "$VERB_TABLE is not JSON with a \"verbs\" object"
+}
+
+verb_verbs() {
+    SN_OP_CURRENT_VERB=verbs; SN_OP_CURRENT_TIER=A
+    (( $# == 0 )) || die_named SN_OP_ARG_COUNT "verbs takes no arguments (got $#)"
+    _table_check
+    jq -r '.verbs | to_entries[] | "\(.key)\t\(.value.tier // "A")\t\(.value.description // "")\t\((.value.args // []) | length) arg(s)"' "$VERB_TABLE"
+}
+
+verb_run() {
+    SN_OP_CURRENT_VERB=run; SN_OP_CURRENT_TIER=A
+    extract_approval "$@"
+    local approval="$EXTRACTED_APPROVAL"
+    local -a rest=("${EXTRACTED_REST[@]}")
+    (( ${#rest[@]} >= 1 )) || die_named SN_OP_ARG_COUNT "run takes <name> [args...] (see: sn-op verbs)"
+    local name="${rest[0]}"
+    rest=("${rest[@]:1}")
+    [[ "$name" =~ $RE_TABLE_VERB ]] || die_named SN_OP_RUN_NAME_SHAPE "name must match $RE_TABLE_VERB, got: $name"
+    SN_OP_CURRENT_VERB="run:$name"
+    _table_check
+
+    local entry
+    entry="$(jq -c --arg n "$name" '.verbs[$n] // empty' "$VERB_TABLE" 2>/dev/null)" \
+        || die_named SN_OP_RUN_TABLE_PARSE "cannot read $VERB_TABLE"
+    [[ -n "$entry" ]] || die_named SN_OP_RUN_UNKNOWN "no verb '$name' in $VERB_TABLE (see: sn-op verbs)"
+    jq -e '(.exec | type == "array" and length > 0 and all(.[]; type == "string"))
+           and ((.args // []) | type == "array" and all(.[]; type == "string"))
+           and ((.tier // "A") | . == "A" or . == "B")' <<< "$entry" >/dev/null 2>&1 \
+        || die_named SN_OP_RUN_TABLE_ENTRY "the row for '$name' needs exec (list of strings), optional args (regexes) and tier A or B"
+    local tier
+    tier="$(jq -r '.tier // "A"' <<< "$entry")"
+    SN_OP_CURRENT_TIER="$tier"
+
+    local -a exe=() res=()
+    mapfile -t exe < <(jq -r '.exec[]' <<< "$entry")
+    mapfile -t res < <(jq -r '(.args // [])[]' <<< "$entry")
+
+    # The executable: absolute, no '..', no symlink anywhere on its path, in an
+    # allowed place, a regular executable file nobody else can rewrite.
+    local bin="${exe[0]}"
+    [[ "${bin:0:1}" == "/" ]] || die_named SN_OP_RUN_EXEC "exec of '$name' must be an absolute path: $bin"
+    [[ "$bin" != *..* ]] || die_named SN_OP_RUN_EXEC "exec of '$name' contains '..': $bin"
+    _exec_allowed "$bin" || die_named SN_OP_RUN_EXEC "exec of '$name' is outside /opt/smart-node and /usr/local/sbin: $bin"
+    [[ "$(realpath -e -- "$bin" 2>/dev/null)" == "$bin" ]] \
+        || die_named SN_OP_RUN_EXEC "exec of '$name' is missing or reached through a symlink: $bin"
+    [[ -f "$bin" && -x "$bin" ]] || die_named SN_OP_RUN_EXEC "exec of '$name' is not an executable file: $bin"
+    _trusted_path "$bin" || die_named SN_OP_RUN_EXEC "exec of '$name' must be owned by root and not writable by others: $bin"
+
+    # The arguments: exact count, each one whole-matching its own regex.
+    (( ${#rest[@]} == ${#res[@]} )) \
+        || die_named SN_OP_ARG_COUNT "run $name takes ${#res[@]} argument(s) (got ${#rest[@]})"
+    local i arg re
+    for (( i = 0; i < ${#rest[@]}; i++ )); do
+        arg="${rest[$i]}"
+        [[ "${arg:0:1}" != "-" ]] || die_named SN_OP_RUN_ARG_OPTION "argument $((i+1)) of '$name' starts with '-': $arg"
+        (( ${#arg} <= 200 )) || die_named SN_OP_RUN_ARG_SHAPE "argument $((i+1)) of '$name' is longer than 200 characters"
+        [[ ! "$arg" =~ [[:cntrl:]] ]] || die_named SN_OP_RUN_ARG_SHAPE "argument $((i+1)) of '$name' has a control character"
+        re="^(${res[$i]})\$"
+        [[ "$arg" =~ $re ]] || die_named SN_OP_RUN_ARG_SHAPE "argument $((i+1)) of '$name' must match ${res[$i]}, got: $arg"
+    done
+
+    local -a arr=("$name" "${rest[@]}")
+    local args_json; args_json="$(_args_json arr)"; SN_OP_CURRENT_ARGS_JSON="$args_json"
+    local -a cmd=("${exe[@]}" "${rest[@]}")
+    if [[ "$tier" == "B" ]]; then
+        [[ -n "$approval" ]] || die_named SN_OP_APPROVAL_REQUIRED "run $name requires --approval <task_id>"
+        verify_approval "$approval" "run:$name" "$args_json"
+        run_and_record "run:$name" B "$args_json" "$approval" "${cmd[@]}"
+    else
+        run_and_record "run:$name" A "$args_json" "" "${cmd[@]}"
+    fi
+}
+
+# ---------- dispatch ---------------------------------------------------------
+
+main() {
+    (( $# > 0 )) || usage
+    local verb="$1"; shift
+    case "$verb" in
+        chgrp)              verb_chgrp              "$@" ;;
+        chmod)              verb_chmod              "$@" ;;
+        setfacl)            verb_setfacl            "$@" ;;
+        groupadd)           verb_groupadd           "$@" ;;
+        groupmod-rename)    verb_groupmod_rename    "$@" ;;
+        gpasswd-add)        verb_gpasswd_add        "$@" ;;
+        gpasswd-del)        verb_gpasswd_del        "$@" ;;
+        mkdir)              verb_mkdir              "$@" ;;
+        mv)                 verb_mv                 "$@" ;;
+        service-start)      verb_service_start      "$@" ;;
+        service-restart)    verb_service_restart    "$@" ;;
+        service-reload)     verb_service_reload     "$@" ;;
+        service-status)     verb_service_status     "$@" ;;
+        container-start)    verb_container_start    "$@" ;;
+        container-restart)  verb_container_restart  "$@" ;;
+        container-status)   verb_container_status   "$@" ;;
+        journal-tail)       verb_journal_tail       "$@" ;;
+        journal-since)      verb_journal_since      "$@" ;;
+        unit-enable)        verb_unit_enable        "$@" ;;
+        service-stop)       verb_service_stop       "$@" ;;
+        unit-install)       verb_unit_install       "$@" ;;
+        container-stop)     verb_container_stop     "$@" ;;
+        rm)                 verb_rm                 "$@" ;;
+        dropin-install)     verb_dropin_install     "$@" ;;
+        route-install)      verb_route_install      "$@" ;;
+        ufw-allow-docker)   verb_ufw_allow_docker   "$@" ;;
+        run)                verb_run                "$@" ;;
+        verbs)              verb_verbs              "$@" ;;
+        --help|-h|help)     usage ;;
+        --version)          echo "sn-op $SN_OP_VERSION"; exit 0 ;;
+        *)                  die_named SN_OP_UNKNOWN_VERB "unknown verb: $verb (see --help)" ;;
+    esac
+}
+
+main "$@"

@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+#
+# sn-tool-install <name> <new|update> -- put a tool's file artifact where agents call it.
+#
+# Run through `sn-op run tool-install <name> <new|update>`. A tool is registered in the
+# database by core-api; its files (<name>.sh and CLAUDE.md) live in the project that builds
+# it, under <projects root>/<name>/deploy/tool/, and have to reach /srv/tools/<name>/, which
+# sits outside the tree where sn-op's path rule does not go. This is the one place that copies
+# them, so the agent that built the tool does not have to ask a person for three `install`
+# lines.
+#
+# What keeps it from becoming a way to plant an executable anywhere:
+#   * the source is fixed by the name: the project must be called like the tool, so a tool
+#     can only be written from its own project;
+#   * only the two fixed file names are copied, and only as plain files (no symlinks, no
+#     other entries, no oversized files);
+#   * an existing /srv/tools/<name> is replaced only with `update`, and only when this
+#     script put it there (marker file), so a tool the installer ships is never overwritten;
+#   * the old files are kept under the backup directory before an update.
+#
+# Fails closed: any doubt is a refusal with the reason on stderr.
+
+set -euo pipefail
+
+NAME_RE='^[a-z][a-z0-9-]{1,40}$'
+MARKER=".installed-by-sn-tool-install"
+MAX_BYTES=262144
+
+die() { echo "sn-tool-install: $*" >&2; exit 2; }
+
+# A test points the roots at a scratch tree. That is honoured only for a non-root caller,
+# so the root-owned copy under sn-op can never be redirected by an environment variable.
+if [[ "$(id -u)" -ne 0 && -n "${SN_TOOL_INSTALL_WORK:-}" ]]; then
+    WORK_ROOT="$SN_TOOL_INSTALL_WORK"
+    TOOLS_ROOT="${SN_TOOL_INSTALL_TOOLS:?SN_TOOL_INSTALL_TOOLS must accompany SN_TOOL_INSTALL_WORK}"
+    BACKUP_ROOT="${SN_TOOL_INSTALL_BACKUPS:?SN_TOOL_INSTALL_BACKUPS must accompany SN_TOOL_INSTALL_WORK}"
+    OWNER_ARGS=()
+else
+    # Where the projects live is this machine's layout, so it is declared in a root-owned
+    # file instead of being written into the script.
+    CONF="/etc/smart-node/tool-install.conf"
+    [[ -f "$CONF" && ! -L "$CONF" && "$(stat -c %u -- "$CONF")" == 0 ]] \
+        || die "$CONF is missing or not root-owned (it must hold PROJECTS_ROOT=<absolute path>)"
+    WORK_ROOT="$(sed -nE 's/^PROJECTS_ROOT=(\/[A-Za-z0-9_.\/-]+)$/\1/p' "$CONF" | head -n1)"
+    [[ -n "$WORK_ROOT" ]] || die "$CONF has no usable PROJECTS_ROOT line"
+    TOOLS_ROOT="/srv/tools"
+    BACKUP_ROOT="/var/lib/smart-node/tool-install-backups"
+    OWNER_ARGS=(-o smart-node-core-api -g smart-node)
+fi
+
+[[ $# -eq 2 ]] || die "usage: sn-tool-install <name> <new|update>"
+name="$1"; mode="$2"
+[[ "$name" =~ $NAME_RE ]] || die "tool name must match $NAME_RE"
+[[ "$mode" == "new" || "$mode" == "update" ]] || die "mode must be new or update"
+
+src="$WORK_ROOT/$name/deploy/tool"
+dst="$TOOLS_ROOT/$name"
+
+# The source directory and both files must be what they look like, not links out of it.
+[[ -d "$src" && ! -L "$src" ]] || die "no source directory $src (the project must be called $name)"
+[[ "$(realpath -e -- "$src")" == "$src" ]] || die "source path resolves elsewhere: $(realpath -e -- "$src")"
+files=("$name.sh" "CLAUDE.md")
+for f in "${files[@]}"; do
+    [[ -f "$src/$f" && ! -L "$src/$f" ]] || die "$src/$f is missing or not a plain file"
+    size="$(stat -c %s -- "$src/$f")"
+    (( size > 0 && size <= MAX_BYTES )) || die "$f is empty or larger than $MAX_BYTES bytes"
+done
+bash -n "$src/$name.sh" || die "$name.sh does not parse"
+
+same=1
+if [[ -d "$dst" ]]; then
+    [[ -f "$dst/$MARKER" ]] || die "$dst exists and was not put there by this command; it is not overwritten"
+    for f in "${files[@]}"; do
+        [[ -f "$dst/$f" ]] && cmp -s -- "$src/$f" "$dst/$f" || same=0
+    done
+    if (( same )); then
+        echo "unchanged: $dst already holds these files"
+        sha256sum -- "$dst/${files[0]}" "$dst/${files[1]}"
+        exit 0
+    fi
+    [[ "$mode" == "update" ]] || die "$dst differs from the source; run again with update"
+    stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    mkdir -p -- "$BACKUP_ROOT/$name.$stamp"
+    for f in "${files[@]}"; do
+        [[ -f "$dst/$f" ]] && cp -p -- "$dst/$f" "$BACKUP_ROOT/$name.$stamp/$f"
+    done
+    echo "previous files kept in $BACKUP_ROOT/$name.$stamp"
+else
+    [[ "$mode" == "new" ]] || die "$dst does not exist; use new"
+fi
+
+install -d "${OWNER_ARGS[@]}" -m 0755 -- "$dst"
+install "${OWNER_ARGS[@]}" -m 0755 -- "$src/$name.sh" "$dst/$name.sh"
+install "${OWNER_ARGS[@]}" -m 0644 -- "$src/CLAUDE.md" "$dst/CLAUDE.md"
+: > "$dst/$MARKER"
+chmod 0644 -- "$dst/$MARKER"
+
+echo "installed: $dst"
+sha256sum -- "$dst/${files[0]}" "$dst/${files[1]}"

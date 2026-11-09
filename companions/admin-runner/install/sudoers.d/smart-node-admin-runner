@@ -1,0 +1,11 @@
+# Privileged identity for the admin-runner: sn-admin.
+#
+# The node-admin agent is BROAD BY DESIGN -- it must be able to make any system
+# change. The security boundary is enforced at the APPLICATION layer inside the
+# runner (host-local bind + owner-gate + full audit + confirm-on-destructive), NOT
+# by narrowing sudo here. Every privileged op is attributed to the owner and
+# audited to sn_core.events; dangerous ops require an explicit owner confirm.
+#
+# If a deployment wants a tighter blast radius, replace the line below with a
+# scoped allowlist -- the runner does not depend on ALL.
+sn-admin ALL=(ALL) NOPASSWD: ALL

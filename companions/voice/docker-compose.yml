@@ -1,0 +1,52 @@
+# Smart Node voice adapter -- node deployment.
+#
+# Runs on the node's `smart-node` docker network so it reaches the node
+# companions directly -- in particular the memory companion at
+# http://smart-node-mesh:8000.
+#
+# Traefik (docker provider, network: smart-node) routes it at
+# voice.${SMART_NODE_DOMAIN} over HTTPS. The microphone needs a secure
+# context, so the route is websecure + tls; the node's default
+# self-signed bootstrap certificate is used (operator must trust it).
+#
+# SMART_NODE_DOMAIN is read from .env in this directory (compose variable
+# substitution) -- the same .env that configures the container.
+services:
+  voice:
+    build:
+      context: .
+      args:
+        APP_VERSION: v1.0.0
+        ENV_LABEL: ""
+    image: smart-node-voice:ui
+    container_name: smart-node-voice
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - sn-voice-data:/data
+    networks:
+      - smart-node
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.snvoice.rule=Host(`line.${SMART_NODE_DOMAIN}`)"
+      - "traefik.http.routers.snvoice.entrypoints=websecure"
+      - "traefik.http.routers.snvoice.tls=true"
+      - "traefik.http.routers.snvoice.service=snvoice"
+      - "traefik.http.routers.snvoice.middlewares=smart-node-auth@docker"
+      # Persona-by-host: the voice backend serves a persona based on the request
+      # Host (see backend/main.py). To expose a persona on its own subdomain, add a
+      # router here -- e.g. Host(`<persona>.${SMART_NODE_DOMAIN}`) -> service snvoice
+      # -- plus a DNS record. No demo personas are pre-wired.
+      - "traefik.http.services.snvoice.loadbalancer.server.port=8001"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  sn-voice-data:
+
+networks:
+  smart-node:
+    external: true

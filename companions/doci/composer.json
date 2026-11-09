@@ -1,0 +1,39 @@
+{
+    "name": "doci/doci",
+    "description": "Document management system with AI integration, threading, and version control",
+    "type": "project",
+    "license": "MIT",
+    "keywords": ["documents", "markdown", "ai", "threads", "version-control"],
+    "authors": [
+        {
+            "name": "Dmytro Klymentiev",
+            "homepage": "https://klymentiev.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-pdo_pgsql": "*",
+        "ext-json": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0",
+        "phpstan/phpstan": "^1.0"
+    },
+    "autoload": {
+        "files": [
+            "src/config.php",
+            "lib/git.php",
+            "lib/validation.php",
+            "lib/response.php",
+            "src/documents.php"
+        ]
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse src/ lib/ api/ --level=5"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

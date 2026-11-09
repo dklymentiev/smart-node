@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesh -- Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-body:    #1a1a1a;
+  --bg-card:    #242424;
+  --bg-accent:  #2e2e2e;
+  --bg-dark:    #141414;
+  --text:       #e0e0e0;
+  --text-dim:   #999;
+  --text-muted: #666;
+  --border:     #333;
+  --radius:     3px;
+  --green:      #7a9f7a;
+  --red:        #c07070;
+  --yellow:     #c4b870;
+  --blue:       #7090c0;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  background: var(--bg-body);
+  color: var(--text);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 20px; background: var(--bg-dark);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar .logo {
+  font-size: 20px; font-weight: 700; color: var(--text);
+  text-decoration: none; letter-spacing: 2px;
+}
+.topbar nav { display: flex; gap: 4px; }
+.topbar nav a {
+  padding: 4px 12px; border-radius: var(--radius);
+  color: var(--text-dim); text-decoration: none; font-size: 13px;
+  transition: background .15s, color .15s;
+}
+.topbar nav a:hover { background: var(--bg-accent); color: var(--text); }
+.topbar nav a.active { background: var(--bg-accent); color: var(--text); }
+
+/* Auth bar */
+.auth-bar {
+  display: none; padding: 8px 20px;
+  background: var(--bg-dark); border-bottom: 1px solid var(--border);
+  gap: 8px; align-items: center; font-size: 13px;
+}
+.auth-bar.visible { display: flex; }
+.auth-bar input {
+  flex: 1; max-width: 400px; padding: 6px 10px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text);
+  font-family: inherit; font-size: 13px; outline: none;
+}
+.auth-bar input:focus { border-color: var(--text-dim); }
+.auth-bar span { color: var(--red); }
+
+/* Main layout */
+.main { max-width: 960px; margin: 0 auto; padding: 20px; }
+.section { margin-bottom: 32px; }
+.section-title {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  margin-bottom: 12px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Status cards */
+.status-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.status-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px;
+}
+.status-card .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.status-card .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+.status-card .value.ok { color: var(--green); }
+.status-card .value.err { color: var(--red); }
+.status-card .value.warn { color: var(--yellow); }
+.status-meta { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+
+/* Tables */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th {
+  text-align: left; padding: 8px 10px;
+  background: var(--bg-accent); color: var(--text-dim);
+  font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+  border-bottom: 1px solid var(--border);
+}
+.tbl td {
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.tbl tr:hover td { background: var(--bg-accent); }
+.tbl .mono { font-size: 12px; color: var(--text-muted); }
+
+/* Buttons */
+.btn {
+  padding: 5px 14px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--bg-card);
+  color: var(--text-dim); font-family: inherit; font-size: 12px;
+  cursor: pointer; transition: all .15s;
+}
+.btn:hover { border-color: var(--text-dim); color: var(--text); }
+.btn-sm { padding: 3px 10px; font-size: 11px; }
+.btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: var(--red); color: #fff; }
+.btn-primary { border-color: var(--blue); color: var(--blue); }
+.btn-primary:hover { background: var(--blue); color: #fff; }
+
+/* Inline forms */
+.inline-form {
+  display: none; padding: 10px; margin-top: 8px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.inline-form.visible { display: flex; }
+.inline-form input, .inline-form select {
+  padding: 6px 10px;
+  background: var(--bg-body); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text);
+  font-family: inherit; font-size: 13px; outline: none;
+}
+.inline-form input:focus { border-color: var(--text-dim); }
+.inline-form label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-dim); cursor: pointer;
+}
+
+/* Flash banner */
+.flash {
+  display: none; padding: 10px 14px; margin-bottom: 10px;
+  background: var(--bg-dark); border: 1px solid var(--green);
+  border-radius: var(--radius); font-size: 12px;
+  gap: 8px; align-items: center;
+}
+.flash.visible { display: flex; }
+.flash code {
+  flex: 1; padding: 4px 8px; background: var(--bg-card);
+  border-radius: var(--radius); word-break: break-all;
+  color: var(--green);
+}
+
+/* Config grid */
+.cfg-grid {
+  display: grid; grid-template-columns: 200px 1fr;
+  font-size: 13px;
+}
+.cfg-grid .cfg-key {
+  padding: 6px 10px; color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-accent);
+}
+.cfg-grid .cfg-val {
+  padding: 6px 10px; color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+}
+.cfg-grid .cfg-val.bool-true { color: var(--green); }
+.cfg-grid .cfg-val.bool-false { color: var(--text-muted); }
+
+/* Categorizer */
+.cat-stats { display: flex; gap: 16px; margin-bottom: 12px; font-size: 13px; }
+.cat-stats span { color: var(--text-dim); }
+.cat-stats b { color: var(--text); }
+.cat-disabled {
+  padding: 16px; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text-muted); font-size: 13px;
+}
+.cat-forms { display: flex; gap: 12px; flex-wrap: wrap; }
+.cat-form {
+  flex: 1; min-width: 280px; padding: 12px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.cat-form h4 { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+.cat-form .field { margin-bottom: 8px; }
+.cat-form .field label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 2px; }
+.cat-form .field input, .cat-form .field select {
+  width: 100%; padding: 6px 10px;
+  background: var(--bg-body); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text);
+  font-family: inherit; font-size: 13px; outline: none;
+}
+
+/* Toolbar row */
+.toolbar { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+.toolbar .spacer { flex: 1; }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .status-grid { grid-template-columns: repeat(2, 1fr); }
+  .cfg-grid { grid-template-columns: 140px 1fr; }
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-body); }
+::-webkit-scrollbar-thumb { background: var(--bg-accent); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="logo" href="/ui/">MESH</a>
+  <nav>
+    <a href="/ui/">Search</a>
+    <a href="/ui/map.html">Map</a>
+    <a href="/ui/settings.html" class="active">Settings</a>
+  </nav>
+</div>
+
+<div class="auth-bar" id="auth-bar">
+  <span>API key required</span>
+  <input type="password" id="auth-key" placeholder="Enter API key...">
+  <button class="btn btn-sm" onclick="saveKey()">Save</button>
+</div>
+
+<div class="main">
+
+<!-- Section 1: System Status -->
+<div class="section">
+  <div class="section-title">System Status</div>
+  <div class="status-grid">
+    <div class="status-card"><div class="label">API</div><div class="value" id="s-api">--</div></div>
+    <div class="status-card"><div class="label">Database</div><div class="value" id="s-db">--</div></div>
+    <div class="status-card"><div class="label">Embeddings</div><div class="value" id="s-emb">--</div></div>
+    <div class="status-card"><div class="label">Documents</div><div class="value" id="s-docs">--</div></div>
+    <div class="status-card"><div class="label">Indexed</div><div class="value" id="s-idx">--</div></div>
+    <div class="status-card"><div class="label">Queue</div><div class="value" id="s-queue">--</div></div>
+  </div>
+  <div class="status-meta" id="s-meta"></div>
+</div>
+
+<!-- Section 2: Workspaces -->
+<div class="section">
+  <div class="section-title">Workspaces</div>
+  <div class="toolbar">
+    <button class="btn btn-sm btn-primary" onclick="toggleForm('ws-form')">[+ New]</button>
+  </div>
+  <div class="inline-form" id="ws-form">
+    <input type="text" id="ws-name" placeholder="workspace name">
+    <button class="btn btn-sm btn-primary" onclick="createWorkspace()">Create</button>
+    <button class="btn btn-sm" onclick="toggleForm('ws-form')">Cancel</button>
+  </div>
+  <table class="tbl">
+    <thead><tr><th>Workspace</th><th>Documents</th><th>Last Activity</th><th></th></tr></thead>
+    <tbody id="ws-body"><tr><td colspan="4" style="color:var(--text-muted)">Loading...</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Section 3: API Keys -->
+<div class="section">
+  <div class="section-title">API Keys</div>
+  <div class="flash" id="key-flash">
+    <span>New key:</span>
+    <code id="key-raw"></code>
+    <button class="btn btn-sm" onclick="copyKey()">Copy</button>
+  </div>
+  <div class="toolbar">
+    <button class="btn btn-sm btn-primary" onclick="toggleForm('key-form')">[+ New]</button>
+  </div>
+  <div class="inline-form" id="key-form">
+    <input type="text" id="key-label" placeholder="label">
+    <input type="text" id="key-workspaces" placeholder="workspaces (comma-sep, empty=all)">
+    <label><input type="checkbox" id="key-admin"> admin</label>
+    <button class="btn btn-sm btn-primary" onclick="createKey()">Create</button>
+    <button class="btn btn-sm" onclick="toggleForm('key-form')">Cancel</button>
+  </div>
+  <table class="tbl">
+    <thead><tr><th>Label</th><th>Hash</th><th>Workspaces</th><th>Admin</th><th>Created</th><th>Last Used</th><th></th></tr></thead>
+    <tbody id="keys-body"><tr><td colspan="7" style="color:var(--text-muted)">Loading...</td></tr></tbody>
+  </table>
+</div>
+
+<!-- Section 4: Categorizer -->
+<div class="section">
+  <div class="section-title">Categorizer</div>
+  <div class="toolbar" style="margin-bottom:8px">
+    <label style="font-size:12px;color:var(--text-dim)">Workspace:</label>
+    <select id="cat-ws" style="padding:4px 8px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:inherit;font-size:13px" onchange="loadCategorizer()">
+      <option value="default">default</option>
+    </select>
+  </div>
+  <div id="cat-content">
+    <div style="color:var(--text-muted)">Loading...</div>
+  </div>
+</div>
+
+<!-- Section 5: Configuration -->
+<div class="section">
+  <div class="section-title">Configuration</div>
+  <div class="cfg-grid" id="cfg-grid">
+    <div class="cfg-key">Loading...</div><div class="cfg-val">--</div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const BASE = window.location.origin;
+let API_KEY = localStorage.getItem('mesh_api_key') || '';
+
+function headers() {
+  const h = { 'Content-Type': 'application/json' };
+  if (API_KEY) h['X-API-Key'] = API_KEY;
+  return h;
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(BASE + path, { headers: headers(), ...opts });
+  if (res.status === 401 || res.status === 403) {
+    document.getElementById('auth-bar').classList.add('visible');
+    throw new Error('Auth required');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || res.statusText);
+  }
+  return res.json();
+}
+
+function saveKey() {
+  API_KEY = document.getElementById('auth-key').value.trim();
+  localStorage.setItem('mesh_api_key', API_KEY);
+  document.getElementById('auth-bar').classList.remove('visible');
+  loadAll();
+}
+
+function toggleForm(id) {
+  document.getElementById(id).classList.toggle('visible');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '--';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-CA') + ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+// --- Status ---
+async function loadStatus() {
+  try {
+    const [health, stats] = await Promise.all([
+      api('/health'),
+      api('/stats')
+    ]);
+    const s = (id, val, cls) => {
+      const el = document.getElementById(id);
+      el.textContent = val;
+      el.className = 'value ' + (cls || '');
+    };
+    s('s-api', health.status === 'healthy' ? 'OK' : health.status, health.status === 'healthy' ? 'ok' : 'err');
+    s('s-db', health.database === 'connected' ? 'OK' : health.database, health.database === 'connected' ? 'ok' : 'err');
+    s('s-emb', health.embeddings === 'loaded' ? 'OK' : health.embeddings, health.embeddings === 'loaded' ? 'ok' : 'err');
+    const docs = stats.documents || stats.total_documents || 0;
+    const indexed = stats.indexed || stats.indexed_documents || 0;
+    const queue = docs - indexed;
+    s('s-docs', docs.toLocaleString());
+    s('s-idx', indexed.toLocaleString());
+    s('s-queue', queue.toLocaleString(), queue > 0 ? 'warn' : '');
+    const meta = [];
+    if (health.embedding_model) meta.push('Model: ' + health.embedding_model);
+    if (health.version) meta.push('v' + health.version);
+    document.getElementById('s-meta').textContent = meta.join('  |  ');
+  } catch (e) {
+    document.getElementById('s-api').textContent = 'ERR';
+    document.getElementById('s-api').className = 'value err';
+  }
+}
+
+// --- Workspaces ---
+async function loadWorkspaces() {
+  try {
+    const data = await api('/admin/workspaces');
+    const tbody = document.getElementById('ws-body');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted)">No workspaces</td></tr>'; return; }
+    tbody.innerHTML = data.map(w => `<tr>
+      <td>${esc(w.workspace)}</td>
+      <td>${w.documents}</td>
+      <td class="mono">${fmtDate(w.last_activity)}</td>
+      <td>${w.workspace === 'default' ? '' : `<button class="btn btn-sm btn-danger" onclick="deleteWorkspace('${esc(w.workspace)}')">Delete</button>`}</td>
+    </tr>`).join('');
+  } catch (e) {
+    document.getElementById('ws-body').innerHTML = `<tr><td colspan="4" style="color:var(--red)">${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function createWorkspace() {
+  const name = document.getElementById('ws-name').value.trim();
+  if (!name) return;
+  try {
+    await api('/', {
+      method: 'PUT',
+      headers: { ...headers(), 'X-Workspace': name },
+      body: JSON.stringify({ content: 'Workspace seed document for ' + name, tags: ['workspace:init'] })
+    });
+    document.getElementById('ws-name').value = '';
+    toggleForm('ws-form');
+    loadWorkspaces();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function deleteWorkspace(name) {
+  if (!confirm('Delete workspace "' + name + '" and ALL its documents?')) return;
+  try {
+    await api('/admin/workspaces/' + encodeURIComponent(name) + '?confirm=true', { method: 'DELETE' });
+    loadWorkspaces();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+// --- API Keys ---
+async function loadKeys() {
+  try {
+    const data = await api('/admin/keys');
+    const tbody = document.getElementById('keys-body');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted)">No keys</td></tr>'; return; }
+    tbody.innerHTML = data.map(k => `<tr>
+      <td>${esc(k.label || '--')}</td>
+      <td class="mono">${esc((k.key_hash || '').substring(0, 12))}...</td>
+      <td>${k.workspaces ? esc(k.workspaces.join(', ')) : '<span style="color:var(--text-muted)">all</span>'}</td>
+      <td>${k.is_admin ? '<span style="color:var(--green)">yes</span>' : 'no'}</td>
+      <td class="mono">${fmtDate(k.created_at)}</td>
+      <td class="mono">${fmtDate(k.last_used)}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="revokeKey('${esc(k.key_hash)}')">Revoke</button></td>
+    </tr>`).join('');
+  } catch (e) {
+    document.getElementById('keys-body').innerHTML = `<tr><td colspan="7" style="color:var(--red)">${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function createKey() {
+  const label = document.getElementById('key-label').value.trim();
+  const ws = document.getElementById('key-workspaces').value.trim();
+  const admin = document.getElementById('key-admin').checked;
+  if (!label) return;
+  try {
+    const body = { label, is_admin: admin };
+    if (ws) body.workspaces = ws.split(',').map(s => s.trim()).filter(Boolean);
+    const res = await api('/admin/keys', { method: 'POST', body: JSON.stringify(body) });
+    document.getElementById('key-raw').textContent = res.raw_key || res.key || '(not returned)';
+    document.getElementById('key-flash').classList.add('visible');
+    document.getElementById('key-label').value = '';
+    document.getElementById('key-workspaces').value = '';
+    document.getElementById('key-admin').checked = false;
+    toggleForm('key-form');
+    loadKeys();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+function copyKey() {
+  const key = document.getElementById('key-raw').textContent;
+  navigator.clipboard.writeText(key);
+}
+
+async function revokeKey(hash) {
+  if (!confirm('Revoke this API key?')) return;
+  try {
+    await api('/admin/keys/' + encodeURIComponent(hash), { method: 'DELETE' });
+    document.getElementById('key-flash').classList.remove('visible');
+    loadKeys();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+// --- Categorizer ---
+function catWsHeaders() {
+  const ws = document.getElementById('cat-ws').value;
+  const h = headers();
+  h['X-Workspace'] = ws;
+  return h;
+}
+
+async function catApi(path, opts = {}) {
+  const h = catWsHeaders();
+  const res = await fetch(BASE + path, { headers: h, ...opts });
+  if (res.status === 401 || res.status === 403) {
+    document.getElementById('auth-bar').classList.add('visible');
+    throw new Error('Auth required');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || res.statusText);
+  }
+  return res.json();
+}
+
+async function populateCatWs() {
+  try {
+    const data = await api('/admin/workspaces');
+    const sel = document.getElementById('cat-ws');
+    const cur = sel.value;
+    sel.innerHTML = data.map(w =>
+      `<option value="${esc(w.workspace)}"${w.workspace === cur ? ' selected' : ''}>${esc(w.workspace)}</option>`
+    ).join('');
+  } catch (e) { /* keep default */ }
+}
+
+async function loadCategorizer() {
+  const el = document.getElementById('cat-content');
+  try {
+    const tax = await catApi('/categorizer/taxonomy');
+    const stats = tax.stats || {};
+    const catCount = stats.categories || 0;
+    const total = stats.total_documents || 0;
+    const categorized = stats.categorized || 0;
+    const uncatCount = stats.uncategorized || 0;
+    const llm = stats.llm_available !== undefined ? stats.llm_available : null;
+
+    let html = '<div class="cat-stats">';
+    html += `<span>Categories: <b>${catCount}</b></span>`;
+    html += `<span>Categorized: <b>${categorized}</b></span>`;
+    html += `<span>Uncategorized: <b>${uncatCount}</b></span>`;
+    if (llm !== null) html += `<span>LLM: <b style="color:${llm ? 'var(--green)' : 'var(--text-muted)'}">${llm ? 'available' : 'off'}</b></span>`;
+    html += '</div>';
+
+    html += '<div class="cat-forms">';
+    // Bootstrap
+    html += '<div class="cat-form"><h4>Bootstrap</h4>';
+    html += '<div class="field"><label>Mode</label><select id="cat-mode"><option value="cluster">cluster</option><option value="designed">designed</option></select></div>';
+    html += '<div class="field"><label>Sample size</label><input type="number" id="cat-sample" value="200" min="10" max="5000"></div>';
+    html += '<div class="field"><label>Min cluster</label><input type="number" id="cat-mincluster" value="3" min="2" max="50"></div>';
+    html += '<div class="field"><label><input type="checkbox" id="cat-llm" checked> Use LLM</label></div>';
+    html += '<button class="btn btn-primary" onclick="catBootstrap()">Run Bootstrap</button>';
+    html += '</div>';
+    // Batch classify
+    html += '<div class="cat-form"><h4>Batch Classify</h4>';
+    html += '<div class="field"><label>Limit</label><input type="number" id="cat-limit" value="100" min="1" max="10000"></div>';
+    html += '<div class="field"><label><input type="checkbox" id="cat-force"> Force re-classify</label></div>';
+    html += '<button class="btn btn-primary" onclick="catBatch()">Run Batch</button>';
+    html += '</div>';
+    html += '</div>';
+
+    // Categories table
+    html += '<div style="margin-top:16px">';
+    html += '<div class="toolbar"><b style="font-size:13px;color:var(--text-dim)">Categories</b><div class="spacer"></div>';
+    html += '<button class="btn btn-sm btn-primary" onclick="toggleForm(\'cat-new-form\')">[+ New]</button></div>';
+    html += '<div class="inline-form" id="cat-new-form">';
+    html += '<input type="text" id="cat-new-id" placeholder="slug-id" style="width:120px">';
+    html += '<input type="text" id="cat-new-name" placeholder="Display Name" style="width:160px">';
+    html += '<input type="text" id="cat-new-desc" placeholder="Description" style="width:200px">';
+    html += '<input type="text" id="cat-new-parent" placeholder="parent_id (optional)" style="width:140px">';
+    html += '<button class="btn btn-sm btn-primary" onclick="catCreate()">Create</button>';
+    html += '<button class="btn btn-sm" onclick="toggleForm(\'cat-new-form\')">Cancel</button>';
+    html += '</div>';
+    html += '<div id="cat-table-wrap"></div>';
+    html += '</div>';
+
+    el.innerHTML = html;
+
+    // Load categories table
+    loadCategories();
+  } catch (e) {
+    if (e.message.includes('404') || e.message.includes('Not Found') || e.message.includes('not found')) {
+      el.innerHTML = '<div class="cat-disabled">Categorizer is not enabled. Set CATEGORIZER_ENABLED=true to activate.</div>';
+    } else {
+      el.innerHTML = `<div class="cat-disabled" style="color:var(--red)">${esc(e.message)}</div>`;
+    }
+  }
+}
+
+async function loadCategories() {
+  const wrap = document.getElementById('cat-table-wrap');
+  if (!wrap) return;
+  try {
+    const cats = await catApi('/categorizer/categories');
+    if (!cats.length) {
+      wrap.innerHTML = '<div style="padding:10px;color:var(--text-muted);font-size:13px">No categories yet</div>';
+      return;
+    }
+    // Separate parents and children
+    const parents = cats.filter(c => !c.parent_id);
+    const children = cats.filter(c => c.parent_id);
+    const childMap = {};
+    children.forEach(c => {
+      if (!childMap[c.parent_id]) childMap[c.parent_id] = [];
+      childMap[c.parent_id].push(c);
+    });
+
+    let html = '<table class="tbl"><thead><tr><th>Name</th><th>ID</th><th>Description</th><th>Docs</th><th></th></tr></thead><tbody>';
+    parents.forEach(p => {
+      html += `<tr>
+        <td><b>${esc(p.name)}</b></td>
+        <td class="mono">${esc(p.id)}</td>
+        <td style="color:var(--text-muted);font-size:12px">${esc((p.description || '').substring(0, 80))}</td>
+        <td>${p.doc_count}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm" onclick="catRename('${esc(p.id)}','${esc(p.name)}')">Rename</button>
+          <button class="btn btn-sm btn-danger" onclick="catDelete('${esc(p.id)}')">Delete</button>
+        </td>
+      </tr>`;
+      (childMap[p.id] || []).forEach(sub => {
+        html += `<tr>
+          <td style="padding-left:28px;color:var(--text-dim)">${esc(sub.name)}</td>
+          <td class="mono">${esc(sub.id)}</td>
+          <td style="color:var(--text-muted);font-size:12px">${esc((sub.description || '').substring(0, 80))}</td>
+          <td>${sub.doc_count}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-sm" onclick="catRename('${esc(sub.id)}','${esc(sub.name)}')">Rename</button>
+            <button class="btn btn-sm btn-danger" onclick="catDelete('${esc(sub.id)}')">Delete</button>
+          </td>
+        </tr>`;
+      });
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+  } catch (e) {
+    wrap.innerHTML = `<div style="color:var(--red);font-size:13px">${esc(e.message)}</div>`;
+  }
+}
+
+async function catCreate() {
+  const id = document.getElementById('cat-new-id').value.trim();
+  const name = document.getElementById('cat-new-name').value.trim();
+  const desc = document.getElementById('cat-new-desc').value.trim();
+  const parent = document.getElementById('cat-new-parent').value.trim();
+  if (!id || !name) return alert('ID and Name are required');
+  try {
+    const body = { id, name, description: desc };
+    if (parent) body.parent_id = parent;
+    await catApi('/categorizer/categories', { method: 'POST', body: JSON.stringify(body) });
+    document.getElementById('cat-new-id').value = '';
+    document.getElementById('cat-new-name').value = '';
+    document.getElementById('cat-new-desc').value = '';
+    document.getElementById('cat-new-parent').value = '';
+    toggleForm('cat-new-form');
+    loadCategories();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function catRename(id, currentName) {
+  const newName = prompt('Rename category "' + currentName + '":', currentName);
+  if (!newName || newName === currentName) return;
+  try {
+    await catApi('/categorizer/categories/' + encodeURIComponent(id), {
+      method: 'PUT',
+      body: JSON.stringify({ name: newName })
+    });
+    loadCategories();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function catDelete(id) {
+  if (!confirm('Delete category "' + id + '" and remove its tags from all documents?')) return;
+  try {
+    await catApi('/categorizer/categories/' + encodeURIComponent(id), { method: 'DELETE' });
+    loadCategories();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function catBootstrap() {
+  try {
+    const body = {
+      mode: document.getElementById('cat-mode').value,
+      sample_size: parseInt(document.getElementById('cat-sample').value),
+      min_cluster_size: parseInt(document.getElementById('cat-mincluster').value),
+      use_llm: document.getElementById('cat-llm').checked
+    };
+    const res = await catApi('/categorizer/bootstrap', { method: 'POST', body: JSON.stringify(body) });
+    alert('Bootstrap complete: ' + (res.categories || 0) + ' categories, ' + (res.subcategories || 0) + ' subcategories');
+    loadCategorizer();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+async function catBatch() {
+  try {
+    const body = {
+      limit: parseInt(document.getElementById('cat-limit').value),
+      force: document.getElementById('cat-force').checked
+    };
+    const res = await catApi('/categorizer/batch', { method: 'POST', body: JSON.stringify(body) });
+    alert('Batch classify: ' + JSON.stringify(res.stats || res));
+    loadCategorizer();
+  } catch (e) { alert('Error: ' + e.message); }
+}
+
+// --- Config ---
+async function loadConfig() {
+  try {
+    const data = await api('/admin/config');
+    const grid = document.getElementById('cfg-grid');
+    const labels = {
+      auth_required: 'Auth Required',
+      embedding_model: 'Embedding Model',
+      similarity_threshold: 'Similarity Threshold',
+      max_content_length: 'Max Content Length',
+      rate_limit_search: 'Rate Limit (search)',
+      rate_limit_embed: 'Rate Limit (embed)',
+      cors_origins: 'CORS Origins',
+      categorizer_enabled: 'Categorizer',
+      log_level: 'Log Level',
+      debug: 'Debug',
+      db_pool_min: 'DB Pool Min',
+      db_pool_max: 'DB Pool Max',
+    };
+    let html = '';
+    for (const [key, label] of Object.entries(labels)) {
+      const val = data[key];
+      let display = val;
+      let cls = 'cfg-val';
+      if (typeof val === 'boolean') {
+        display = val ? 'true' : 'false';
+        cls += val ? ' bool-true' : ' bool-false';
+      } else if (Array.isArray(val)) {
+        display = val.length ? val.join(', ') : '(none)';
+      }
+      html += `<div class="cfg-key">${label}</div><div class="${cls}">${esc(String(display))}</div>`;
+    }
+    grid.innerHTML = html;
+  } catch (e) {
+    document.getElementById('cfg-grid').innerHTML = `<div class="cfg-key">Error</div><div class="cfg-val" style="color:var(--red)">${esc(e.message)}</div>`;
+  }
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function loadAll() {
+  loadStatus();
+  loadWorkspaces();
+  loadKeys();
+  await populateCatWs();
+  loadCategorizer();
+  loadConfig();
+}
+
+// Init
+loadAll();
+setInterval(loadStatus, 30000);
+</script>
+</body>
+</html>

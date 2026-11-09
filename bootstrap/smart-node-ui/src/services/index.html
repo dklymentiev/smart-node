@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Services</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="services" data-group="server">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="10" height="10" fill="currentColor"/>
+        <rect x="9" y="9" width="10" height="10" fill="currentColor"/>
+      </svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item active" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/" class="subnav-item">Overview</a>
+  <a href="/events/" class="subnav-item">Events</a>
+  <a href="/messages/" class="subnav-item">Messages</a>
+  <a href="/crons/" class="subnav-item">Crons</a>
+  <a href="/services/" class="subnav-item active">Services</a>
+  <a href="/systems/" class="subnav-item">Health</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ 03 · services</div>
+    <h1>Services</h1>
+    <p class="lead">Companions are the node's scheduled jobs (register them on the <a href="/crons/">Crons</a> page); health comes from each job's last run. Docker containers (<code>smart-node-*</code>) and systemd units are host-runtime and populate once a host collector reports them. Read live from the database, refreshed every 30 s.</p>
+  </div>
+
+  <section class="stat-grid stat-grid-4">
+    <article class="stat-card">
+      <div class="stat-label">Companions</div>
+      <div class="stat-value" data-field="companions">-</div>
+      <div class="stat-foot" data-field="companions-foot">installed</div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-label">Containers</div>
+      <div class="stat-value" data-field="containers">-</div>
+      <div class="stat-foot" data-field="containers-foot">running</div>
+    </article>
+    <article class="stat-card">
+      <div class="stat-label">Systemd</div>
+      <div class="stat-value" data-field="systemd">-</div>
+      <div class="stat-foot" data-field="systemd-foot">active</div>
+    </article>
+    <article class="stat-card" id="issuesCard">
+      <div class="stat-label">Issues</div>
+      <div class="stat-value" data-field="issues">-</div>
+      <div class="stat-foot">not <code>ok</code></div>
+    </article>
+  </section>
+
+  <section class="filter-row">
+    <label class="filter">
+      <span class="filter-label">Kind</span>
+      <select id="filterKind">
+        <option value="">all</option>
+        <option value="companion">companion</option>
+        <option value="container">container</option>
+        <option value="systemd">systemd</option>
+      </select>
+    </label>
+    <label class="filter">
+      <span class="filter-label">Health</span>
+      <select id="filterHealth">
+        <option value="">all</option>
+        <option value="ok">ok</option>
+        <option value="warn">warn</option>
+        <option value="fail">fail</option>
+      </select>
+    </label>
+    <div class="filter-meta">
+      <span class="meta-dot" id="liveDot"></span>
+      <span>Last refresh <span id="lastRefresh">-</span> · <span id="rowCount">-</span> rows</span>
+    </div>
+  </section>
+
+  <div class="table-wrap">
+    <table class="events-table services-table" id="servicesTable">
+      <thead>
+        <tr>
+          <th class="col-health">Health</th>
+          <th class="col-kind">Kind</th>
+          <th class="col-name">Name</th>
+          <th class="col-path">Path</th>
+          <th class="col-version">Version / Image</th>
+          <th class="col-status">Status</th>
+          <th class="col-detail">Detail</th>
+        </tr>
+      </thead>
+      <tbody id="servicesBody">
+        <tr class="empty-row"><td colspan="7"><span class="sn-spinner" aria-hidden="true"></span>Loading</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.4</span>
+</footer>
+
+<script src="/assets/shell.js?v=20261107-2"></script>
+</body>
+</html>

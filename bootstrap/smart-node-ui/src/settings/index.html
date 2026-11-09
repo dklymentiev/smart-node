@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Settings</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css">
+<link rel="stylesheet" href="/assets/settings.css?v=20261015-settings3">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="settings" data-group="settings">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="mark-lockup" href="/"><svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true"><rect x="1" y="1" width="10" height="10" fill="currentColor"/><rect x="9" y="9" width="10" height="10" fill="currentColor"/></svg><span class="mark-text">Smart Node</span></a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item active" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/settings/" class="subnav-item active">Node</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ settings</div>
+    <h1>Settings</h1>
+    <p class="lead">What belongs to the node as a whole: the node itself, the rules every agent works by, who can sign in and what each role may do, and the departments. Agents, limits and workflows have their own pages.</p>
+  </div>
+  <div class="st-grid">
+    <section class="st-card" aria-labelledby="stNodeH"><h2 id="stNodeH">Node</h2><p class="st-lead">This installation.</p><div id="stNode"><span class="sn-spinner" aria-hidden="true"></span></div></section>
+    <section class="st-card" aria-labelledby="stRulesH"><h2 id="stRulesH">Rules for the agents</h2><p class="st-lead">Policies are written into each agent's prompt, by the categories the agent follows, right under its role.</p><div id="stRules"><span class="sn-spinner" aria-hidden="true"></span></div></section>
+    <section class="st-card" aria-labelledby="stDepsH"><h2 id="stDepsH">Departments</h2><p class="st-lead">How the crew is organised, and who heads each part.</p><div id="stDeps"><span class="sn-spinner" aria-hidden="true"></span></div></section>
+    <section class="st-card st-card--wide" aria-labelledby="stAccessH"><h2 id="stAccessH">People and access</h2><p class="st-lead">Accounts that can sign in, and what each role may do. Read only.</p><div id="stAccess"><span class="sn-spinner" aria-hidden="true"></span></div></section>
+  </div>
+</main>
+<footer class="page-footer"><span class="footer-meta">Smart Node panel · memory</span></footer>
+<script src="/assets/shell.js?v=20261107-2"></script>
+<script src="/assets/settings.js?v=20261015-settings3"></script>
+</body>
+</html>

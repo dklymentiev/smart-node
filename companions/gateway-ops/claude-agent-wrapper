@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""claude-agent-wrapper -- read credential from env file, exec claude.
+
+Installed at /opt/smart-node/gateway/claude-agent-wrapper by gateway.sh.
+Called by sudo in place of the claude CLI for agent sessions.
+
+The gateway passes all claude CLI arguments to this wrapper.  The wrapper
+reads credentials from /etc/smart-node/agent-runtime.env, injects them into
+the environment, then execs the real claude binary. A system prompt is received
+as a length-framed stdin prefix and passed via an anonymous file descriptor:
+sudo must never see the prompt in arguments or environment variables.
+
+CONSTRAINTS (all deliberate):
+  os.execve -- not fork-and-wait, so no process is left holding the value
+  never log or print the credential value, only the file path on error
+  read the env file directly in Python -- never source it into a shell
+  fail loudly with the file path if the file is unreadable or the key absent
+
+The file /etc/smart-node/agent-runtime.env is root:smart-node-agents, mode
+0640.  Agent OS users are members of smart-node-agents, so the wrapper
+running as the target agent can read it.  The gateway (smart-node-gateway)
+cannot read it directly, which is intentional: nothing in the sudo-logged
+environment ever carries the token value.
+"""
+import os
+import json
+import struct
+import sys
+from contextlib import nullcontext
+
+CRED_FILE = os.environ.get("SMART_NODE_AGENT_ENV",
+                           "/etc/smart-node/agent-runtime.env")
+CLAUDE_BIN = os.environ.get("CLI_PATH", "/usr/local/bin/claude")
+FLINT_BIN = os.environ.get("FLINT_PATH", "/usr/local/bin/flint")
+_CRED_KEYS = frozenset(("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"))
+_PROMPT_STDIN_FLAG = "--sn-system-prompt-stdin"
+_FLINT_ENV_FLAG = "--sn-env-stdin"
+_FLINT_RUNTIME_FLAG = "--sn-runtime-flint"
+_FLINT_ENV_NAMES = frozenset((
+    "FLINT_PROVIDER", "FLINT_UPDATE_CHECK", "FLINT_FALLBACK_MODEL", "FLINT_BASE_URL",
+    "OPENROUTER_API_KEY",
+    "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_MODEL",
+    "OPENROUTER_PROVIDER_ONLY", "OPENROUTER_PROVIDER_IGNORE",
+    "OPENROUTER_PROVIDER_ORDER", "OPENROUTER_PROVIDER_SORT",
+    "SN_AGENT_SLUG", "SN_MESSAGE_ORIGIN_CHANNEL",
+    "SN_MESSAGE_ORIGIN_CONVERSATION",
+    # the person's clock for the runtime's own time stamps (gateway _person_tz_env)
+    "TZ",
+))
+# The gateway relays a Claude Code process's model calls: the frame carries the
+# process's own token and the gateway's address, and the node credential is
+# then not read at all.
+_RELAY_ENV_NAMES = frozenset(("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"))
+_ENV_FRAME_NAMES = _FLINT_ENV_NAMES | _RELAY_ENV_NAMES
+
+
+def _read_exact(size: int) -> bytes:
+    """Read only this frame, leaving the CLI's stream-json input untouched.
+
+    Do not use sys.stdin.buffer: read-ahead can consume the first user message
+    into a Python buffer that is lost when exec replaces the wrapper.
+    """
+    chunks = []
+    while size:
+        chunk = os.read(0, size)
+        if not chunk:
+            _fail("incomplete system prompt frame")
+        chunks.append(chunk)
+        size -= len(chunk)
+    return b"".join(chunks)
+
+
+def _receive_prompt(handle) -> None:
+    os.fchmod(handle.fileno(), 0o600)
+    remaining = struct.unpack("!Q", _read_exact(8))[0]
+    while remaining:
+        chunk = _read_exact(min(remaining, 65536))
+        handle.write(chunk)
+        remaining -= len(chunk)
+    handle.flush()
+    handle.seek(0)
+    os.set_inheritable(handle.fileno(), True)
+
+
+def _receive_flint_env() -> dict:
+    size = struct.unpack("!Q", _read_exact(8))[0]
+    if size > 1024 * 1024:
+        _fail("environment frame exceeds 1 MiB")
+    try:
+        data = json.loads(_read_exact(size))
+    except (ValueError, UnicodeDecodeError):
+        _fail("invalid environment frame")
+    if not isinstance(data, dict) or any(
+        k not in _ENV_FRAME_NAMES or not isinstance(v, str)
+        for k, v in data.items()
+    ):
+        _fail("environment frame contains an unsupported variable")
+    return data
+
+
+def _fail(msg: str) -> None:
+    """Print msg to stderr and exit non-zero.
+
+    Never include a credential value in msg -- only the file path and the
+    class of error.  A wrapper that fails silently (exits 0 with an empty
+    credential) reproduces the outage this script is fixing.
+    """
+    print(f"claude-agent-wrapper: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def _read_creds(path: str) -> dict:
+    """Read KEY=value lines from path and return only the credential keys.
+
+    Handles optional 'export ' prefix and single/double quoting.  Deliberate
+    narrow scope: only credential keys are extracted; every other variable in
+    that file belongs to the agent runtime and is not this script's business.
+    """
+    found: dict = {}
+    try:
+        with open(path) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("export "):
+                    line = line[7:].lstrip()
+                key, sep, value = line.partition("=")
+                if not sep or key not in _CRED_KEYS:
+                    continue
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                    value = value[1:-1]
+                if value:
+                    found[key] = value
+    except PermissionError:
+        _fail(f"cannot read {path}: permission denied")
+    except FileNotFoundError:
+        _fail(f"credential file not found: {path}")
+    except OSError as exc:
+        _fail(f"cannot read {path}: {exc}")
+    return found
+
+
+def main() -> None:
+    args = sys.argv[1:]
+    is_flint = _FLINT_RUNTIME_FLAG in args
+    if is_flint:
+        args.remove(_FLINT_RUNTIME_FLAG)
+    receives_env = _FLINT_ENV_FLAG in args
+    if receives_env:
+        args.remove(_FLINT_ENV_FLAG)
+    if is_flint and not receives_env:
+        _fail("Flint runtime requires a private environment frame")
+
+    # Read the private frame before the prompt frame, and neither from a
+    # buffered reader: the CLI's first user line must survive exec intact.
+    env = dict(os.environ)
+    if is_flint:
+        env.update(_receive_flint_env())
+        binary = FLINT_BIN
+        if not os.path.isabs(binary):
+            _fail("FLINT_PATH must be absolute")
+    else:
+        frame = _receive_flint_env() if receives_env else {}
+        if frame.get("ANTHROPIC_AUTH_TOKEN"):
+            # The gateway relays this process's model calls. Its token is the
+            # only credential the process holds; the node's stays on disk.
+            for key in _CRED_KEYS:
+                env.pop(key, None)
+            env.update(frame)
+        else:
+            env.update(frame)
+            creds = _read_creds(CRED_FILE)
+            if not creds:
+                _fail(f"no credential key (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY) "
+                      f"found in {CRED_FILE}")
+            env.update(creds)
+        binary = CLAUDE_BIN
+
+    receives_prompt = _PROMPT_STDIN_FLAG in args
+    # The descriptor is created as the agent, after sudo has closed inherited
+    # descriptors. No named file, shared group permission or cleanup race.
+    context = (os.fdopen(os.memfd_create("cli-system-prompt"), "w+b")
+               if receives_prompt else nullcontext())
+    with context as handle:
+        if receives_prompt:
+            args.remove(_PROMPT_STDIN_FLAG)
+            _receive_prompt(handle)
+            args.extend(["--system-prompt-file", f"/proc/self/fd/{handle.fileno()}"])
+        os.execve(binary, [binary] + args, env)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,21 @@
+[Unit]
+Description=Check daily that the node still matches its own class declaration
+
+[Timer]
+OnCalendar=daily
+# OnActiveSec, not OnBootSec. The declaration this checks is laid in the
+# installer's phase 3.5, which runs AFTER validate and therefore after this
+# timer has been started. On a machine that booted days ago OnBootSec is already
+# in the past, so the timer fired the instant it was enabled, found no
+# /etc/smart-node/classes.json, exited 2 and left the unit failed -- which
+# validate then reported, correctly, as an unhealthy unit.
+#
+# Counting from when the TIMER became active gives the install its whole run to
+# finish before the first firing. Fifteen minutes is comfortably longer than a
+# full install-on --all, which takes about eight.
+OnActiveSec=15min
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

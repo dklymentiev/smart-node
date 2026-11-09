@@ -1,0 +1,41 @@
+# Smart Node Memory companion -- MCP sidecar image.
+#
+# Wraps Mesh's mcp_server.py (FastMCP) as a small service beside the memory
+# API, so agents on this node can actually USE the memory it runs. Without it
+# a node has the store and no way in: no tools, no CLI, nothing.
+#
+# A separate image on purpose. The memory image is ~1.7 GB because it bakes an
+# embedding model, and upstream's .dockerignore excludes mcp_server.py from it
+# deliberately. This is the doci-mcp shape: a slim python image that talks to
+# the API over HTTP.
+#
+# Usage (see start_mesh_mcp in companions/memory.sh):
+#   MESH_API_URL   -- the memory API (e.g. http://smart-node-mesh:8000)
+#   MESH_API_KEY   -- only if the API requires auth
+#   MESH_MCP_HOST  -- bind address (0.0.0.0 inside the container)
+#   MESH_MCP_PORT  -- listen port (default 8100)
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# The MCP server talks to the memory API over HTTP; it needs neither torch nor
+# the embedding model, which is the whole point of not reusing the big image.
+# Pinned below 2.0 on purpose, matching the documents sidecar: mcp 2.x moved
+# fastmcp out of mcp.server, so an unpinned install builds an image that
+# crash-loops on `No module named 'mcp.server.fastmcp'`.
+RUN pip install --no-cache-dir "mcp>=1.0.0,<2" "httpx>=0.27.0,<1"
+
+COPY mcp_server.py ./
+
+ENV MESH_MCP_HOST=0.0.0.0
+ENV MESH_MCP_PORT=8100
+
+EXPOSE 8100
+
+# streamable-http, NEVER sse. The older transport splits the stream and the
+# calls across two connections, and a current client sends its first call before
+# initialisation completes: every call then fails with -32602 while the
+# container reports healthy. That is exactly what shipped on the documents side
+# and it cost a full debugging round to find.
+CMD ["python", "mcp_server.py", "--transport", "http"]

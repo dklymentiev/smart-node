@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Messages</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css?v=20261107-2">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="messages" data-group="server">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="10" height="10" fill="currentColor"/>
+        <rect x="9" y="9" width="10" height="10" fill="currentColor"/>
+      </svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item active" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/" class="subnav-item">Overview</a>
+  <a href="/events/" class="subnav-item">Events</a>
+  <a href="/messages/" class="subnav-item active">Messages</a>
+  <a href="/crons/" class="subnav-item">Crons</a>
+  <a href="/services/" class="subnav-item">Services</a>
+  <a href="/systems/" class="subnav-item">Health</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ 03 · messages</div>
+    <h1>Message bus</h1>
+    <p class="lead">Unified inbound/outbound stream from <code>public.messages</code>. Email and Telegram are wired. Newest 200 rows, refreshed every 15 s. Click a thread to see only that conversation.</p>
+  </div>
+
+  <section class="ev-charts">
+    <div class="timeline-head">
+      <div class="section-label">traffic</div>
+      <div class="timeline-ranges" id="msgRanges" role="group" aria-label="time window">
+        <button type="button" data-hours="1">1h</button>
+        <button type="button" data-hours="6">6h</button>
+        <button type="button" data-hours="24">24h</button>
+        <button type="button" data-hours="168">7d</button>
+      </div>
+    </div>
+    <div class="timeline-card">
+      <div class="ev-chart" id="msgChart" role="img" aria-label="Messages per time bucket by channel: inbound above the axis, outbound below it; a strip of blocked and failed messages underneath. The same messages are listed in the table below."></div>
+      <div class="timeline-foot" id="msgChartFoot"></div>
+    </div>
+  </section>
+
+  <section class="filter-row">
+    <label class="filter">
+      <span class="filter-label">Channel</span>
+      <select id="filterChannel"><option value="">all</option></select>
+    </label>
+    <label class="filter">
+      <span class="filter-label">Direction</span>
+      <select id="filterDirection">
+        <option value="">all</option>
+        <option value="inbound">inbound</option>
+        <option value="outbound">outbound</option>
+      </select>
+    </label>
+    <label class="filter">
+      <span class="filter-label">Status</span>
+      <select id="filterStatus">
+        <option value="">all</option>
+        <option value="processed">processed</option>
+        <option value="blocked">blocked</option>
+        <option value="failed">failed</option>
+      </select>
+    </label>
+    <span class="filter-chip" id="threadChip" hidden></span>
+    <label class="filter">
+      <span class="filter-label">Search</span>
+      <input id="filterSearch" type="search" placeholder="sender, recipient, text, thread" />
+    </label>
+    <div class="filter-meta">
+      <span class="meta-dot" id="liveDot"></span>
+      <span>Last refresh <span id="lastRefresh">-</span> · <span id="rowCount">-</span> rows</span>
+    </div>
+  </section>
+
+  <div class="table-wrap">
+    <table class="events-table" id="messagesTable">
+      <thead>
+        <tr>
+          <th class="col-id">ID</th>
+          <th class="col-ts">Time</th>
+          <th class="col-actor">Channel</th>
+          <th class="col-type">Direction</th>
+          <th class="col-status">Status</th>
+          <th class="col-sender">Sender</th>
+          <th class="col-recipient">Recipient</th>
+          <th class="col-thread">Thread</th>
+          <th class="col-payload">Content</th>
+        </tr>
+      </thead>
+      <tbody id="messagesBody">
+        <tr class="empty-row"><td colspan="9"><span class="sn-spinner" aria-hidden="true"></span>Loading</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.3</span>
+</footer>
+
+<script src="/assets/vendor/echarts.min.js?v=5.6.0"></script>
+<script src="/assets/shell.js?v=20261107-2"></script>
+<script src="/assets/foundation.js"></script>
+</body>
+</html>

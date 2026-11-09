@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Health</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+<style>
+/* Systems page local styles */
+.sys-toolbar { display:flex; align-items:center; gap:12px; margin-bottom:24px; flex-wrap:wrap; }
+.sys-window-btns { display:flex; gap:4px; }
+.sys-window-btn {
+  padding:5px 12px; border-radius:6px; font-size:12.5px; cursor:pointer;
+  border:1px solid var(--rule); background:var(--paper); color:var(--ink-mute);
+  font-family:'JetBrains Mono',ui-monospace,monospace; transition:background .12s,color .12s;
+}
+.sys-window-btn:hover { background:var(--surface); color:var(--ink); }
+.sys-window-btn.active { background:var(--ink-fill); color:var(--on-fill); border-color:transparent; }
+
+.sys-refresh-btn {
+  padding:5px 14px; border-radius:6px; font-size:12.5px; cursor:pointer;
+  border:1px solid var(--rule); background:var(--paper); color:var(--ink-mute);
+  transition:background .12s,color .12s;
+}
+.sys-refresh-btn:hover { background:var(--surface); color:var(--ink); }
+
+.verdict-bar {
+  display:flex; align-items:center; gap:14px; padding:16px 20px;
+  border-radius:10px; border:1px solid var(--rule); margin-bottom:20px;
+  background:var(--paper);
+}
+.verdict-badge {
+  font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px;
+  font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  padding:4px 10px; border-radius:5px; white-space:nowrap;
+}
+.verdict-badge.ok     { background:rgba(34,197,94,.15); color:#22c55e; }
+.verdict-badge.degraded { background:rgba(234,179,8,.15); color:#eab308; }
+.verdict-badge.broken { background:rgba(239,68,68,.15); color:#ef4444; }
+.verdict-badge.unknown { background:var(--surface); color:var(--ink-mute); }
+
+.verdict-reasons { flex:1; }
+.verdict-reasons ul { margin:0; padding:0 0 0 16px; font-size:13px; color:var(--ink-2); }
+.verdict-reasons ul li { margin:2px 0; }
+.verdict-reasons .no-reasons { font-size:13px; color:var(--ink-mute); }
+
+/* Section layout */
+.sys-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+@media (max-width:900px) { .sys-grid { grid-template-columns:1fr; } }
+
+.sys-card {
+  background:var(--paper); border:1px solid var(--rule); border-radius:10px;
+  padding:16px 18px;
+}
+.sys-card-title {
+  font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-mute); margin-bottom:12px; font-family:'JetBrains Mono',ui-monospace,monospace;
+}
+.sys-card table { width:100%; border-collapse:collapse; font-size:13px; }
+.sys-card table th {
+  text-align:left; padding:5px 8px 5px 0; color:var(--ink-mute);
+  font-size:11.5px; font-weight:500; border-bottom:1px solid var(--rule-soft);
+}
+.sys-card table td { padding:5px 8px 5px 0; color:var(--ink-2); border-bottom:1px solid var(--rule-soft); vertical-align:top; }
+.sys-card table tr:last-child td { border-bottom:0; }
+
+/* Status dots */
+.dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+.dot-ok     { background:#22c55e; }
+.dot-warn   { background:#eab308; }
+.dot-fail   { background:#ef4444; }
+.dot-idle   { background:var(--ink-faint); }
+.dot-busy   { background:#3b82f6; }
+
+/* Charts */
+.sys-charts { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+@media (max-width:900px) { .sys-charts { grid-template-columns:1fr; } }
+.sys-chart-card {
+  background:var(--paper); border:1px solid var(--rule); border-radius:10px; padding:16px 18px;
+}
+.sys-chart-title { font-size:11px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-mute); margin-bottom:10px; font-family:'JetBrains Mono',ui-monospace,monospace; }
+.sys-chart-echarts { width:100%; height:240px; }
+.sys-chart-foot { margin-top:6px; font-size:12px; color:var(--ink-mute); font-family:'JetBrains Mono',ui-monospace,monospace; }
+
+/* Agent activity table -- full-width */
+.sys-activity {
+  background:var(--paper); border:1px solid var(--rule); border-radius:10px;
+  padding:16px 18px; margin-bottom:20px;
+}
+.sys-activity table { width:100%; border-collapse:collapse; font-size:13px; }
+.sys-activity th { text-align:left; padding:5px 10px 5px 0; color:var(--ink-mute); font-size:11.5px; font-weight:500; border-bottom:1px solid var(--rule-soft); }
+.sys-activity td { padding:6px 10px 6px 0; color:var(--ink-2); border-bottom:1px solid var(--rule-soft); vertical-align:middle; }
+.sys-activity tr:last-child td { border-bottom:0; }
+.sys-activity .slug-cell { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:12px; }
+.sys-activity .action-cell { color:var(--ink-mute); font-size:12px; }
+/* A working agent's state pulses, Studio's "working now" effect (sidebar,
+   app.css): ink colour, sn-pulse over --sn-t-amb. The keyframes are the design
+   system's (ui/components.css), which the panel does not load, so the same
+   definition is repeated here. */
+@keyframes sn-pulse { 50% { opacity: .35; } }
+.sys-activity tr.row-running .state-cell { color: var(--sn-ink); animation: sn-pulse var(--sn-t-amb, 1.6s) infinite; }
+@media (prefers-reduced-motion: reduce) { .sys-activity tr.row-running .state-cell { animation: none; } }
+.sys-activity .idle-cell { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11.5px; color:var(--ink-mute); }
+
+.sys-meta { font-size:11.5px; color:var(--ink-mute); font-family:'JetBrains Mono',ui-monospace,monospace; }
+.empty-notice { color:var(--ink-mute); font-size:13px; padding:8px 0; }
+</style>
+</head>
+<body data-page="systems" data-group="server">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="10" height="10" fill="currentColor"/>
+        <rect x="9" y="9" width="10" height="10" fill="currentColor"/>
+      </svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node &middot; self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item active" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/" class="subnav-item">Overview</a>
+  <a href="/events/" class="subnav-item">Events</a>
+  <a href="/messages/" class="subnav-item">Messages</a>
+  <a href="/crons/" class="subnav-item">Crons</a>
+  <a href="/services/" class="subnav-item">Services</a>
+  <a href="/systems/" class="subnav-item active">Health</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ health</div>
+    <h1>Health</h1>
+    <p class="lead">Is the node OK right now: a verdict over the chosen window, and the numbers behind it.</p>
+  </div>
+
+  <div class="sys-toolbar">
+    <div class="sys-window-btns" id="windowBtns">
+      <button class="sys-window-btn" data-hours="0.5">30 min</button>
+      <button class="sys-window-btn active" data-hours="2">2 h</button>
+      <button class="sys-window-btn" data-hours="6">6 h</button>
+      <button class="sys-window-btn" data-hours="24">24 h</button>
+    </div>
+    <button class="sys-refresh-btn" id="refreshBtn">Refresh</button>
+    <span class="sys-meta" id="sysGenAt">-</span>
+    <span id="liveDot" class="live-dot off" style="margin-left:4px;"></span>
+  </div>
+
+  <!-- Verdict -->
+  <div class="verdict-bar" id="verdictBar">
+    <span class="verdict-badge unknown" id="verdictBadge">-</span>
+    <div class="verdict-reasons" id="verdictReasons">
+      <span class="no-reasons">Loading&hellip;</span>
+    </div>
+  </div>
+
+  <!-- Charts: errors over time + agent busyness over time -->
+  <div class="sys-chart-card" style="margin-bottom:20px">
+    <div class="sys-chart-title">Tool calls and agent wakes</div>
+    <div id="healthChart" class="sys-chart-echarts"></div>
+    <div class="sys-chart-foot" id="healthChartFoot"></div>
+  </div>
+
+  <!-- Agent activity -->
+  <div class="sys-activity" id="activitySection">
+    <div class="sys-card-title">Who is doing what right now</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:120px">Agent</th>
+          <th style="width:110px">State</th>
+          <th>Detail</th>
+          <th style="width:180px">Channels</th>
+        </tr>
+      </thead>
+      <tbody id="activityBody">
+        <tr><td colspan="4" class="empty-notice">Loading&hellip;</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Two-column grid: tools + crons -->
+  <div class="sys-grid">
+    <div class="sys-card" id="toolsCard">
+      <div class="sys-card-title">Tool calls</div>
+      <table>
+        <tbody id="toolsBody">
+          <tr><td colspan="2" class="empty-notice">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sys-card" id="cronsCard">
+      <div class="sys-card-title">Node timers</div>
+      <table>
+        <thead>
+          <tr><th>Timer</th><th>Last run</th><th>Result</th></tr>
+        </thead>
+        <tbody id="cronsBody">
+          <tr><td colspan="3" class="empty-notice">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Two-column grid: refusals + health probe -->
+  <div class="sys-grid">
+    <div class="sys-card" id="refusalsCard">
+      <div class="sys-card-title">Refusals in window</div>
+      <table>
+        <thead><tr><th>Actor</th><th>Op</th><th>Count</th></tr></thead>
+        <tbody id="refusalsBody">
+          <tr><td colspan="3" class="empty-notice">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sys-card" id="probeCard">
+      <div class="sys-card-title">Health probe fails</div>
+      <table>
+        <thead><tr><th>Agent</th><th>Grant</th><th>Error</th></tr></thead>
+        <tbody id="probeBody">
+          <tr><td colspan="3" class="empty-notice">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Gateway + messages + release -->
+  <div class="sys-grid">
+    <div class="sys-card" id="gatewayCard">
+      <div class="sys-card-title">Gateway</div>
+      <table>
+        <tbody id="gatewayBody">
+          <tr><td colspan="2" class="empty-notice">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sys-card" id="releaseCard">
+      <div class="sys-card-title">Active release</div>
+      <table>
+        <tbody id="releaseBody">
+          <tr><td colspan="2" class="empty-notice">Loading&hellip;</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tool failures detail (full width) -->
+  <div class="sys-card" id="toolFailCard" style="margin-bottom:20px;">
+    <div class="sys-card-title">Tool failure detail</div>
+    <table>
+      <thead><tr><th>Op</th><th>Status</th><th>Count</th></tr></thead>
+      <tbody id="toolFailBody">
+        <tr><td colspan="3" class="empty-notice">Loading&hellip;</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<script src="/assets/vendor/echarts.min.js?v=5.6.0"></script>
+<script src="/assets/shell.js"></script>
+<script>
+(function () {
+  var currentHours = 2;
+  var lastData = null;
+
+  // ---- helpers ----
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];
+    });
+  }
+  function fmtTs(iso) {
+    if (!iso) return '-';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleTimeString(undefined, {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  }
+  function fmtDur(secs) {
+    if (secs == null || secs < 0) return '-';
+    if (secs < 60) return secs + 's';
+    if (secs < 3600) return Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+    var h = Math.floor(secs / 3600);
+    var m = Math.floor((secs % 3600) / 60);
+    return h + 'h ' + m + 'm';
+  }
+
+  // ---- chart: one ECharts instance, two panels on one time axis ----
+  // Top: tool calls per bucket, the failed ones stacked on top in the status
+  // red. Bottom: agent wakes. Two measures, so two panels, never two y-scales
+  // in one plot. Colours are the Events page's (tools blue, agents orange,
+  // failure red), so a colour means the same thing on every page.
+  var hc = null;
+  function tok(name, fb) {
+    var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fb;
+  }
+  function isDark() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
+  function bucketSecs(hours) {   // mirrors core-api's choice when it does not say
+    return hours <= 2 ? 300 : hours <= 12 ? 1800 : hours <= 48 ? 3600 : 21600;
+  }
+  function healthOption(d) {
+    var dark = isDark();
+    var ink = tok('--sn-ink', dark ? '#f2f2f0' : '#0a0a0a');
+    var inkMute = tok('--sn-ink-mute', '#76767a');
+    var rule = tok('--sn-rule', dark ? 'rgba(255,255,255,.075)' : '#e7e6e1');
+    var surface = tok('--sn-surface', dark ? '#131419' : '#ffffff');
+    var mono = tok('--sn-mono', 'JetBrains Mono, monospace');
+    var w = d.window || {};
+    var width = (w.bucket_seconds || bucketSecs(w.hours || currentHours)) * 1000;
+    var from = Date.parse(w.from), to = Date.parse(w.to);
+    var tools = (d.tools || {}).series || [], wakes = (d.agents || {}).series || [];
+    var pt = function (s, v) { return [Date.parse(s.bucket) + width / 2, v > 0 ? v : '-']; };
+    var axis = function (i, labels) {
+      return { type: 'time', gridIndex: i, min: from, max: to,
+               axisLine: { lineStyle: { color: rule } }, axisTick: { show: false }, splitLine: { show: false },
+               axisLabel: { show: labels, color: inkMute, fontFamily: mono, fontSize: 10.5, hideOverlap: true,
+                            formatter: { day: '{MMM} {d}', hour: '{HH}:{mm}', minute: '{HH}:{mm}' } } };
+    };
+    var yAxis = function (i) {
+      return { type: 'value', gridIndex: i, minInterval: 1, splitNumber: i ? 2 : 3,
+               axisLabel: { color: inkMute, fontFamily: mono, fontSize: 10 },
+               splitLine: { lineStyle: { color: rule, width: 1 } } };
+    };
+    var bar = function (name, color, i, stack, data) {
+      return { type: 'bar', name: name, stack: stack, xAxisIndex: i, yAxisIndex: i,
+               barMaxWidth: 24, itemStyle: { color: color, borderColor: surface, borderWidth: 1 },
+               emphasis: { focus: 'none' }, data: data };
+    };
+    var legend = function (top, names) {
+      return { top: top, left: 0, itemWidth: 10, itemHeight: 10, icon: 'roundRect', itemGap: 14,
+               textStyle: { color: inkMute, fontFamily: mono, fontSize: 11 }, data: names };
+    };
+    return {
+      animationDuration: 300,
+      legend: [legend(0, ['tool calls', 'tool calls failed']), legend('57%', ['agent wakes'])],
+      grid: [{ left: 40, right: 12, top: 26, height: '40%' }, { left: 40, right: 12, top: '72%', bottom: 24 }],
+      xAxis: [axis(0, false), axis(1, true)],
+      yAxis: [yAxis(0), yAxis(1)],
+      axisPointer: { link: [{ xAxisIndex: 'all' }] },
+      tooltip: {
+        trigger: 'axis', confine: true,
+        axisPointer: { type: 'shadow', shadowStyle: { color: dark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.04)' } },
+        backgroundColor: surface, borderColor: rule, borderWidth: 1, padding: [8, 10],
+        textStyle: { color: ink, fontFamily: mono, fontSize: 11.5 },
+        extraCssText: 'box-shadow: 0 6px 24px rgba(0,0,0,.18); border-radius: 8px;',
+        formatter: function (ps) {
+          if (!ps || !ps.length) return '';
+          var t0 = ps[0].value[0] - width / 2;
+          var fmt = function (ms) { return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
+          var lines = ps.filter(function (p) { return Number(p.value[1]) > 0; }).map(function (p) {
+            return '<div style="display:flex;align-items:center;gap:8px;justify-content:space-between">' +
+              '<span style="display:flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:' +
+              p.color + '"></span><span style="color:' + inkMute + '">' + esc(p.seriesName) + '</span></span>' +
+              '<span>' + p.value[1] + '</span></div>';
+          });
+          return '<div style="min-width:190px"><div style="font-weight:600;margin-bottom:6px">' + fmt(t0) + ' - ' + fmt(t0 + width) +
+            '</div>' + (lines.join('') || '<span style="color:' + inkMute + '">nothing</span>') + '</div>';
+        }
+      },
+      series: [
+        bar('tool calls', dark ? '#3987e5' : '#2a78d6', 0, 'tools',
+            tools.map(function (s) { return pt(s, Math.max(0, (s.invoked || 0) - (s.failed || 0))); })),
+        bar('tool calls failed', '#d03b3b', 0, 'tools', tools.map(function (s) { return pt(s, s.failed || 0); })),
+        bar('agent wakes', dark ? '#d95926' : '#eb6834', 1, 'wakes', wakes.map(function (s) { return pt(s, s.wakes || 0); }))
+      ]
+    };
+  }
+  function drawHealthChart(d) {
+    var el = document.getElementById('healthChart');
+    var foot = document.getElementById('healthChartFoot');
+    if (!el || typeof echarts === 'undefined') { if (foot) foot.textContent = 'chart unavailable'; return; }
+    if (!hc) {
+      hc = echarts.init(el, null, { renderer: 'svg' });
+      new MutationObserver(function () { if (lastData) drawHealthChart(lastData); })
+        .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    }
+    hc.resize();
+    hc.setOption(healthOption(d), { notMerge: true });
+    var sum = function (arr, k) { return arr.reduce(function (a, s) { return a + (s[k] || 0); }, 0); };
+    var ts = (d.tools || {}).series || [], as = (d.agents || {}).series || [];
+    var w = d.window || {}, secs = w.bucket_seconds || bucketSecs(w.hours || currentHours);
+    if (foot) foot.textContent = sum(ts, 'invoked') + ' tool calls, ' + sum(ts, 'failed') + ' failed, ' +
+      sum(as, 'wakes') + ' agent wakes in the window · one column per ' + (secs >= 3600 ? secs / 3600 + 'h' : secs / 60 + 'm');
+  }
+
+  // ---- render ----
+  function render(d) {
+    lastData = d;
+
+    // Verdict
+    var badge = document.getElementById('verdictBadge');
+    var reasons = document.getElementById('verdictReasons');
+    if (badge) {
+      badge.className = 'verdict-badge ' + (d.verdict || 'unknown');
+      badge.textContent = d.verdict || '?';
+    }
+    if (reasons) {
+      var rs = d.reasons || [];
+      if (rs.length) {
+        reasons.innerHTML = '<ul>' + rs.map(function(r){ return '<li>' + esc(r) + '</li>'; }).join('') + '</ul>';
+      } else {
+        reasons.innerHTML = '<span class="no-reasons">No issues detected in this window.</span>';
+      }
+    }
+
+    // Meta
+    var genAt = document.getElementById('sysGenAt');
+    if (genAt && d.window) {
+      genAt.textContent = 'generated ' + fmtTs(d.window.generated_at) + ' · window ' + d.window.hours + 'h';
+    }
+
+    // Charts
+    drawHealthChart(d);
+
+    // Agent activity (3-state: running / in_conversation / idle)
+    var body = document.getElementById('activityBody');
+    if (body) {
+      var rows = (d.agents || {}).activity || [];
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="4" class="empty-notice">No agent data.</td></tr>';
+      } else {
+        body.innerHTML = rows.map(function (r) {
+          var state = r.state || (r.status === 'busy' ? 'running' : 'idle');
+          var dotCls = state === 'running' ? 'dot-busy' : state === 'in_conversation' ? 'dot-warn' : 'dot-idle';
+
+          // Detail column: differs by state
+          var detail = '';
+          if (state === 'running') {
+            detail = fmtDur(r.state_for_secs || r.in_state_secs);
+            if (r.task_ref) detail += ' on ' + esc(r.task_ref);
+          } else if (state === 'in_conversation') {
+            detail = 'waiting ' + fmtDur(r.waiting_secs) + ' on ' + esc(r.last_msg_channel || '?');
+          } else {
+            detail = 'idle ' + fmtDur(r.idle_for_secs || r.in_state_secs);
+            if (r.last_action) detail += ' / ' + esc(r.last_action);
+            if (r.last_action_at || r.last_action_ts) {
+              detail += ' <span class="idle-cell">(' + esc(fmtTs(r.last_action_ts || r.last_action_at)) + ')</span>';
+            }
+          }
+
+          // Channels chips
+          var chans = r.channels || [];
+          var chips = chans.length
+            ? chans.map(function(ch) {
+                var tip = (ch.count || '-') + ' msgs';
+                if (ch.last_at) tip += ', last ' + fmtTs(ch.last_at);
+                return '<span title="' + esc(tip) + '" style="display:inline-block;padding:1px 6px;margin:1px 2px;font-size:10px;border:1px solid var(--rule);border-radius:4px;font-family:monospace;white-space:nowrap">' + esc(ch.channel) + '</span>';
+              }).join('')
+            : '<span class="idle-cell">none</span>';
+
+          return '<tr' + (state === 'running' ? ' class="row-running"' : '') + '>' +
+            '<td class="slug-cell"><span class="dot ' + dotCls + '"></span>' + esc(r.slug) + '</td>' +
+            '<td class="state-cell">' + esc(state) + '</td>' +
+            '<td class="action-cell">' + detail + '</td>' +
+            '<td>' + chips + '</td>' +
+            '</tr>';
+        }).join('');
+      }
+    }
+
+    // Tools counts
+    var toolsBody = document.getElementById('toolsBody');
+    if (toolsBody) {
+      var t = d.tools || {};
+      toolsBody.innerHTML = [
+        ['Invoked', t.invoked],
+        ['Succeeded', t.succeeded],
+        ['Failed', t.failed],
+        ['Unresolved', t.unresolved],
+      ].map(function(row) {
+        var cls = (row[0] === 'Failed' && row[1] > 0) ? ' style="color:#ef4444"'
+                : (row[0] === 'Unresolved' && row[1] > 0) ? ' style="color:#eab308"' : '';
+        return '<tr><td style="color:var(--ink-mute)">' + esc(row[0]) + '</td><td' + cls + '>' + esc(row[1] != null ? row[1] : '-') + '</td></tr>';
+      }).join('');
+    }
+
+    // Tool failures
+    var failBody = document.getElementById('toolFailBody');
+    if (failBody) {
+      var fails = (d.tools || {}).failures || [];
+      if (!fails.length) {
+        failBody.innerHTML = '<tr><td colspan="3" class="empty-notice">No failures in this window.</td></tr>';
+      } else {
+        failBody.innerHTML = fails.map(function(f) {
+          return '<tr><td style="font-family:monospace;font-size:12px">' + esc(f.op || '-') + '</td>' +
+            '<td>' + esc(f.status || '-') + '</td>' +
+            '<td>' + esc(f.count) + '</td></tr>';
+        }).join('');
+      }
+    }
+
+    // Crons
+    var cronsBody = document.getElementById('cronsBody');
+    if (cronsBody) {
+      var crons = d.crons || [];
+      if (!crons.length) {
+        cronsBody.innerHTML = '<tr><td colspan="3" class="empty-notice">No node timers reported.</td></tr>';
+      } else {
+        cronsBody.innerHTML = crons.map(function(c) {
+          var neverRan = c.last_run === 'never_run';
+          // result = systemd's Result of the last run (success, exit-code, ...)
+          var ok = c.result === 'success';
+          var dotCls = neverRan ? 'dot-warn' : (ok ? 'dot-ok' : (c.result ? 'dot-fail' : 'dot-warn'));
+          var runText = neverRan ? 'never' : fmtTs(c.last_run);
+          var codeText = neverRan ? '-' : (c.result || '-');
+          var codeStyle = (!neverRan && c.result && !ok) ? ' style="color:#ef4444"' : '';
+          return '<tr>' +
+            '<td title="' + esc(c.schedule || '') + '"><span class="dot ' + dotCls + '"></span>' + esc(String(c.slug).replace(/^smart-node-/, '')) + '</td>' +
+            '<td style="font-size:12px;font-family:monospace">' + esc(runText) + '</td>' +
+            '<td' + codeStyle + '>' + esc(codeText) + '</td>' +
+            '</tr>';
+        }).join('');
+      }
+    }
+
+    // Refusals
+    var refBody = document.getElementById('refusalsBody');
+    if (refBody) {
+      var refs = d.refusals || [];
+      if (!refs.length) {
+        refBody.innerHTML = '<tr><td colspan="3" class="empty-notice">None in this window.</td></tr>';
+      } else {
+        refBody.innerHTML = refs.slice(0, 12).map(function(r) {
+          return '<tr><td style="font-size:12px;font-family:monospace">' + esc(r.actor || '-') + '</td>' +
+            '<td style="font-size:12px;font-family:monospace">' + esc(r.op || '-') + '</td>' +
+            '<td>' + esc(r.count) + '</td></tr>';
+        }).join('');
+      }
+    }
+
+    // Health probe
+    var probeBody = document.getElementById('probeBody');
+    if (probeBody) {
+      var pfails = (d.health_probe || {}).fails || [];
+      if (!pfails.length) {
+        probeBody.innerHTML = '<tr><td colspan="3" class="empty-notice">No failures.</td></tr>';
+      } else {
+        probeBody.innerHTML = pfails.slice(0, 12).map(function(f) {
+          return '<tr><td style="font-family:monospace;font-size:12px">' + esc(f.agent || '-') + '</td>' +
+            '<td style="font-family:monospace;font-size:12px">' + esc(f.grant || '-') + '</td>' +
+            '<td style="font-size:11px;color:var(--ink-mute)">' + esc((f.error || '-').substring(0,60)) + '</td></tr>';
+        }).join('');
+      }
+    }
+
+    // Gateway
+    var gwBody = document.getElementById('gatewayBody');
+    if (gwBody) {
+      var gw = d.gateway || {};
+      gwBody.innerHTML = [
+        ['Spawn-cap refusals', gw.cap_refusals],
+        ['HTTP 502s', gw.http_502],
+      ].map(function(row) {
+        var v = row[1];
+        var cls = (v > 0) ? ' style="color:#ef4444"' : '';
+        return '<tr><td style="color:var(--ink-mute)">' + esc(row[0]) + '</td><td' + cls + '>' + esc(v != null ? v : '-') + '</td></tr>';
+      }).join('');
+      if (gw.coverage) {
+        gwBody.innerHTML += '<tr><td colspan="2" style="font-size:11px;color:var(--ink-faint);padding-top:6px">' + esc(gw.coverage) + '</td></tr>';
+      }
+    }
+
+    // Release
+    var relBody = document.getElementById('releaseBody');
+    if (relBody) {
+      var rel = d.release || {};
+      if (!rel.project_id) {
+        relBody.innerHTML = '<tr><td colspan="2" class="empty-notice">Not available.</td></tr>';
+      } else {
+        var byStatus = rel.by_status || {};
+        var rows = Object.keys(byStatus).sort().map(function(s) {
+          return '<tr><td style="font-family:monospace;font-size:12px">' + esc(s) + '</td><td>' + esc(byStatus[s]) + '</td></tr>';
+        }).join('');
+        relBody.innerHTML = '<tr><td style="color:var(--ink-mute)">Project</td><td>' + esc(rel.project_id) + '</td></tr>' +
+          '<tr><td style="color:var(--ink-mute)">Total tasks</td><td>' + esc(rel.task_count) + '</td></tr>' +
+          '<tr><td style="color:var(--ink-mute)">Pending review</td><td' + (rel.pending_review > 0 ? ' style="color:#eab308"' : '') + '>' + esc(rel.pending_review) + '</td></tr>' +
+          rows;
+      }
+    }
+
+    // Live dot (from shell.js helper if present)
+    if (typeof setLive === 'function' && d.window) setLive(d.window.generated_at);
+  }
+
+  // ---- fetch ----
+  function load() {
+    fetch('/api/system/summary?hours=' + currentHours, {cache:'no-store', credentials:'same-origin'})
+      .then(function(r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+      .then(function(d) { render(d); })
+      .catch(function(e) {
+        var badge = document.getElementById('verdictBadge');
+        if (badge) { badge.className='verdict-badge unknown'; badge.textContent='error'; }
+        var reasons = document.getElementById('verdictReasons');
+        if (reasons) reasons.innerHTML = '<span class="no-reasons">' + String(e) + '</span>';
+      });
+  }
+
+  // ---- window selector ----
+  document.getElementById('windowBtns') && document.getElementById('windowBtns').addEventListener('click', function(e) {
+    var btn = e.target.closest('.sys-window-btn');
+    if (!btn) return;
+    currentHours = parseFloat(btn.dataset.hours);
+    document.querySelectorAll('.sys-window-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    load();
+  });
+
+  document.getElementById('refreshBtn') && document.getElementById('refreshBtn').addEventListener('click', load);
+
+  // Resize redraws charts
+  var resizeTimer;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function() { if (hc) hc.resize(); }, 150);
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>

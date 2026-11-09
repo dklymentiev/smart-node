@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mesh"
+version = "1.4.0"
+description = "Semantic document memory API with PostgreSQL and pgvector"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [{name = "Dmytro Klymentiev"}]
+keywords = ["semantic-search", "embeddings", "document-management", "pgvector", "fastapi"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Indexing",
+]
+
+[project.urls]
+Repository = "https://github.com/dklymentiev/mesh-memory"
+Documentation = "https://github.com/dklymentiev/mesh-memory/tree/main/docs"
+"Bug Tracker" = "https://github.com/dklymentiev/mesh-memory/issues"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --tb=short"
+log_cli = true
+log_cli_level = "WARNING"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+
+[tool.coverage.run]
+source = ["mesh"]
+
+[tool.coverage.report]
+fail_under = 60
+show_missing = true

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0a">
+<title>Smart Node — voice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a0a0a; --ink:#ededec; --mute:#9a9aa0; --faint:#6a6a70;
+  --rule:rgba(255,255,255,.07); --glass:rgba(255,255,255,.045); --glass-edge:rgba(255,255,255,.09);
+  --amber:#db9a3e; --green:#5fad57; /* brand green reused from contour/orb/avatars, not a one-off */
+  --blue:#2f6fc4; --blue-lite:#7aa0ec;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:'Inter',-apple-system,system-ui,sans-serif;
+  height:100dvh;overflow:hidden;user-select:none;display:flex;flex-direction:column}
+/* very light monochrome lighting: soft sheen from the top + gentle bottom vignette */
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(100% 42% at 50% -6%, rgba(255,255,255,.055), rgba(255,255,255,0) 62%),
+    radial-gradient(120% 60% at 50% 116%, rgba(0,0,0,.4), rgba(0,0,0,0) 66%)}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* ---- top bar (overlay so the feed runs full-height behind it and fogs out) ---- */
+.topbar{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;justify-content:space-between;
+  padding:16px 16px 0;padding-top:calc(16px + env(safe-area-inset-top))}
+.iconbtn{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.06);
+  border:1px solid var(--glass-edge);color:#cfcfcf;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);transition:background .2s,color .2s,transform .4s cubic-bezier(.32,.72,0,1)}
+.iconbtn:hover{background:rgba(255,255,255,.12);color:#fff}
+#gear:hover{transform:rotate(40deg)}
+.iconbtn svg{width:20px;height:20px}
+.conn{width:8px;height:8px;border-radius:50%;background:var(--faint);transition:.3s}
+.conn.dial{background:var(--amber);animation:bp .9s infinite}
+.conn.ok{background:var(--green)}
+/* centred brand mark in the top bar (two offset squares + wordmark) */
+.brand{display:flex;align-items:center;gap:8px;color:#cfcfcf;font-size:14px;font-weight:600;letter-spacing:-.01em;opacity:.85}
+.brand svg{display:block}
+
+/* ---- stage / transcript ---- */
+.stage{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;min-height:0}
+.transcript{display:none;flex-direction:column;justify-content:flex-end;gap:9px;width:100%;max-width:540px;margin:0 auto;flex:1 1 auto;
+  overflow:hidden;padding:10px 20px 180px;
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,rgba(0,0,0,0) 6px,#000 160px,#000 calc(100% - 160px),transparent calc(100% - 100px));
+          mask-image:linear-gradient(to bottom,transparent 0,rgba(0,0,0,0) 6px,#000 160px,#000 calc(100% - 160px),transparent calc(100% - 100px))}
+body[data-state="connected"] .transcript{display:flex}
+.msg{max-width:80%;padding:10px 13px;border-radius:16px;font-size:14px;line-height:1.42}
+.msg.agent{align-self:flex-start;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.06);border-bottom-left-radius:5px;color:#ededec;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.msg.user{align-self:flex-end;background:rgba(47,111,196,.15);border:1px solid rgba(47,111,196,.28);border-bottom-right-radius:5px;color:#eaeefb;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.chip{align-self:center;display:inline-flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);
+  background:rgba(255,255,255,.028);border:1px solid rgba(255,255,255,.06);border-radius:999px;padding:6px 12px;margin:2px 0;
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.chip svg{width:13px;height:13px;color:var(--blue-lite)}
+.pop{animation:pop .38s cubic-bezier(.32,.72,0,1) both}
+@keyframes pop{from{opacity:0;transform:translateY(9px) scale(.98)}to{opacity:1;transform:none}}
+
+/* ---- identity block (idle: big centre / call: small bottom-left) ---- */
+/* corner rest: centred in the gap between the left edge and the (centred) button */
+.identity{position:fixed;left:0;width:calc(50% - 33px);bottom:56px;z-index:5;text-align:center;transform-origin:left bottom;
+  transition:transform .52s cubic-bezier(.4,0,.2,1)}
+.idn{font-size:27px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
+.ids{font-family:'JetBrains Mono',monospace;font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-top:7px}
+body[data-state="dialing"] .ids{color:var(--amber)}
+body[data-state="connected"] .ids{color:var(--green)}
+.idt{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--faint);margin-top:5px;min-height:15px}
+body[data-state="idle"] .idt{display:none}
+
+/* ---- bottom bar: [ ] [orb+button] [file slot] ---- */
+.bottombar{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom));z-index:4;
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 28px;pointer-events:none}
+.bb-center{justify-self:center;pointer-events:auto}
+.bb-right{justify-self:end;pointer-events:auto;width:46px;height:46px}
+.btn-orb{position:relative;width:66px;height:66px;display:flex;align-items:center;justify-content:center}
+.btn-orb canvas{position:absolute;left:50%;top:50%;width:212px;height:212px;transform:translate(-50%,-50%);
+  pointer-events:none;opacity:0;transition:opacity .45s}
+body:not([data-state="idle"]) .btn-orb canvas{opacity:1}
+
+/* the one action button -- glossy black + rotating iridescent contour */
+.actionbtn{position:relative;z-index:1;width:66px;height:66px;border-radius:50%;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(155deg,#1c1c20,#070708);
+  box-shadow:0 12px 30px -12px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.14), inset 0 -10px 16px -10px rgba(0,0,0,.7);
+  transition:transform .15s, color .35s}
+.actionbtn::before{content:"";position:absolute;inset:0;border-radius:50%;padding:2px;
+  background:conic-gradient(from 0deg,#2f6fc4,#2a9d8f,#5fad57,#db9a3e,#8a6fc4,#2f6fc4);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;animation:spin 4.5s linear infinite;pointer-events:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.actionbtn:active{transform:scale(.95)}
+.actionbtn svg{width:26px;height:26px;transition:transform .35s cubic-bezier(.32,.72,0,1)}
+body[data-state="idle"] .actionbtn{color:#fff}
+body:not([data-state="idle"]) .actionbtn{color:#e06b62}
+body:not([data-state="idle"]) .actionbtn svg{transform:rotate(135deg)}
+
+/* ---- contacts: full-screen page ---- */
+#contacts,#settings{position:fixed;inset:0;z-index:20;color:var(--ink);background:var(--bg);
+  font-family:'Inter',-apple-system,system-ui,sans-serif;
+  transition:transform .42s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column}
+#contacts{transform:translateX(-100%)} #contacts.open{transform:translateX(0)}
+#settings{transform:translateX(100%)} #settings.open{transform:translateX(0)}
+.s-top{display:flex;align-items:center;gap:14px;padding:16px 14px;padding-top:calc(16px + env(safe-area-inset-top));border-bottom:1px solid var(--rule)}
+.s-back{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.06);border:none;color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.s-back:hover{background:rgba(255,255,255,.12)}
+.s-back svg{width:21px;height:21px}
+.s-title{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.s-body{flex:1;overflow-y:auto;padding:24px 16px calc(24px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:28px}
+.sec-lab{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin:0 4px 11px}
+/* structure shown with hairlines only, no card box */
+.grp-card{background:none;border:none;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 16px;border-top:1px solid var(--rule);cursor:pointer}
+.row:first-child{border-top:none}
+.row .lab{font-size:15px;color:var(--ink)}
+.row .sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#76767c;margin-top:2px}
+.sw{width:46px;height:28px;border-radius:999px;background:rgba(255,255,255,.10);position:relative;flex:0 0 auto;box-shadow:inset 0 1px 3px rgba(0,0,0,.5);transition:background .25s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#0a0a0a;box-shadow:0 1px 3px rgba(0,0,0,.6);transition:transform .26s cubic-bezier(.32,.72,0,1)}
+.sw.on{background:rgba(255,255,255,.32)}
+.sw.on::after{transform:translateX(18px)}
+#clist .crow{display:flex;align-items:center;gap:13px;padding:13px 16px;border-top:1px solid var(--rule);cursor:pointer;transition:background .15s}
+#clist .crow:first-child{border-top:none}
+#clist .crow:hover{background:rgba(255,255,255,.04)}
+.crow .cav{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:16px;color:#fff;flex:0 0 auto;overflow:hidden}
+.crow .cav img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.crow .cn{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.crow .cr{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-top:1px}
+
+@keyframes bp{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+</head>
+<body data-state="idle">
+
+<div class="topbar">
+  <button class="iconbtn" id="contactsBtn" aria-label="contacts">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.5 5.5 0 0111 0"/><path d="M16 5.2a3 3 0 010 5.6"/><path d="M17.5 14.2a5.5 5.5 0 014 5.8"/></svg>
+  </button>
+  <div class="brand">
+    <svg width="17" height="17" viewBox="0 0 20 20"><rect x="1" y="1" width="10" height="10" fill="currentColor"/><rect x="9" y="9" width="10" height="10" fill="currentColor"/></svg>
+    <span>Smart Node</span>
+  </div>
+  <span class="conn" id="conn" style="display:none"></span>
+  <button class="iconbtn" id="gear" aria-label="settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+  </button>
+</div>
+
+<main class="stage">
+  <div class="transcript" id="transcript"></div>
+</main>
+
+<!-- identity: idle = big centre (no avatar), call = small bottom-left block -->
+<div class="identity" id="identity">
+  <div class="idn" id="idn">Alex</div>
+  <div class="ids" id="ids">Front Desk</div>
+  <div class="idt" id="idt"></div>
+</div>
+
+<!-- bottom bar -->
+<div class="bottombar">
+  <div></div>
+  <div class="bb-center">
+    <div class="btn-orb">
+      <canvas id="orbCanvas" width="424" height="424"></canvas>
+      <button class="actionbtn" id="actionBtn" aria-label="call">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-3 2a11 11 0 005 5l2-3 5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="bb-right"></div>
+</div>
+
+<!-- contacts -->
+<div id="contacts" aria-hidden="true">
+  <div class="s-top">
+    <button class="s-back" id="cBack" aria-label="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="s-title">Contacts</div>
+  </div>
+  <div class="s-body">
+    <section><div class="sec-lab">Your crew</div><div class="grp-card" id="clist"></div></section>
+  </div>
+</div>
+
+<!-- settings -->
+<div id="settings" aria-hidden="true">
+  <div class="s-top">
+    <button class="s-back" id="sBack" aria-label="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div class="s-title">Settings</div>
+  </div>
+  <div class="s-body">
+    <section><div class="sec-lab">Model</div><div class="grp-card" id="modelGroup"></div></section>
+    <section><div class="sec-lab">Voice</div><div class="grp-card" id="voiceGroup"></div></section>
+  </div>
+</div>
+
+<script>
+// Crew is DATA-DRIVEN from the node: /api/agents returns the agents whose `voice`
+// channel is enabled (source of truth: core-api). Enable voice on an agent in the
+// Studio or the panel and it appears here + becomes callable -- no code change, node-agnostic.
+var CREW=[];
+function _hue(x){ var h=0,i=0; x=x||"x"; for(;i<x.length;i++){ h=(h*31+x.charCodeAt(i))>>>0; } return h%360; }
+function _crewCol(slug){ var h=_hue(slug); return {c1:"hsl("+h+" 52% 46%)", c2:"hsl("+((h+38)%360)+" 52% 40%)"}; }
+function crewFromRoster(list){ return (list||[]).map(function(a){ var c=_crewCol(a.slug);
+  return { slug:a.slug, n:a.title||a.slug, r:a.role||"", av:a.avatar?("/avatars/"+a.avatar):null, c1:c.c1, c2:c.c2 }; }); }
+function crewFallback(){ var lbl=location.host.split(":")[0].split(".")[0]||"assistant"; var c=_crewCol(lbl);
+  return [{ slug:"", n:"Assistant", r:location.host.split(":")[0], av:null, c1:c.c1, c2:c.c2 }]; }
+var cur=0, state="idle", dialTimer=null, tickTimer=null, secs=0;
+var body=document.body;
+var idn=document.getElementById("idn"), ids=document.getElementById("ids"), idt=document.getElementById("idt"),
+    conn=document.getElementById("conn"), identity=document.getElementById("identity"),
+    transcriptEl=document.getElementById("transcript");
+
+function grad(a){ return 'linear-gradient(140deg,'+a.c1+','+a.c2+')'; }
+/* Changing who you are calling clears the feed. The server already keeps
+   one conversation per (caller, agent) -- ring a colleague you have never rung and
+   you get an empty thread, as you would with a person -- so leaving the previous
+   agent's lines on screen showed a conversation the new one has no knowledge of.
+   Only the PROFILE (who you are, what language you speak) is shared, on purpose.
+   Clearing is the honest half of the fix: the other half is loading what this
+   agent DOES remember, which has to come from the message registry, not from the
+   in-process window that dies with the container. */
+function setAgent(i){ var _switched = (i !== cur);
+  cur=i; idn.textContent=CREW[i].n; if(state==="idle") ids.textContent=CREW[i].r; if(state==="idle") setHero(true);
+  if(_switched) clearTranscript(); }
+
+/* identity FLIP: idle floats to centre + scales up; call rests bottom-left */
+function setHero(on){
+  if(!on){ identity.style.transform=""; return; }
+  // measure the untransformed box via offsets -- never reset transform, so the
+  // block doesn't flash toward the corner when the agent (and name width) changes
+  var w=identity.offsetWidth, h=identity.offsetHeight, top=innerHeight-56-h;
+  var s=1.95, tcx=innerWidth/2, tcy=innerHeight*0.42;
+  var cx2=w*s/2, cy2=(top+h)-h*s/2;
+  identity.style.transform="translate("+(tcx-cx2)+"px,"+(tcy-cy2)+"px) scale("+s+")";
+}
+addEventListener("resize",function(){ if(state==="idle") setHero(true); });
+
+/* ---- state machine ---- */
+function setState(s){
+  state=s; body.dataset.state=s; var a=CREW[cur];
+  if(s==="idle"){ conn.className="conn"; ids.textContent=a.r; idt.textContent=""; clearTranscript(); stopTimer(); setHero(true); }
+  if(s==="dialing"){ conn.className="conn dial"; ids.textContent="Connecting"; setHero(false); startTimer(); }
+  if(s==="connected"){ conn.className="conn ok"; ids.textContent="Connected"; setHero(false); startTimer(); if(navigator.vibrate)navigator.vibrate(60); }
+}
+function startTimer(){ if(tickTimer)clearInterval(tickTimer); secs=0; idt.textContent="00:00"; tickTimer=setInterval(function(){ secs++;
+  idt.textContent=String(Math.floor(secs/60)).padStart(2,"0")+":"+String(secs%60).padStart(2,"0"); },1000); }
+function stopTimer(){ if(tickTimer){clearInterval(tickTimer);tickTimer=null;} idt.textContent=""; }
+document.getElementById("actionBtn").onclick=function(){ if(state==="idle") startCall(); else stopCall(); };
+
+/* ---- transcript (chips + messages pop in during the call) ---- */
+var DEMO=[
+  {t:"chip",ic:"check",x:"Call connected"},
+  {t:"agent",x:"Hi, this is Alex at the tasting room. How can I help?"},
+  {t:"user", x:"Do you have tours this Saturday afternoon?"},
+  {t:"chip",ic:"cal",x:"Checked the calendar"},
+  {t:"agent",x:"Yes — 2pm and 4pm are open. Want me to book one?"},
+  {t:"user", x:"2pm, for two people please."},
+  {t:"chip",ic:"mail",x:"Booking created · confirmation emailed"},
+  {t:"agent",x:"Done. You're set for Saturday at 2pm."},
+  {t:"user", x:"Could you send the address and parking info too?"},
+  {t:"chip",ic:"send",x:"Message sent · address + parking"},
+  {t:"agent",x:"Sent — check your inbox. Anything else?"},
+  {t:"chip",ic:"msg",x:"New message received"},
+  {t:"chip",ic:"task",x:"Task created · follow up Monday"},
+  {t:"agent",x:"Noted a follow-up for Monday. See you Saturday!"}
+];
+var revealTimers=[];
+function chipIcon(k){ var p={
+    check:'<path d="M5 13l4 4L19 7"/>',
+    cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/>',
+    mail:'<path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/>',
+    send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
+    msg:'<path d="M4 5h16v11H7l-3 3z"/>',
+    task:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>',
+    system:'<circle cx="12" cy="12" r="2.6"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/>'}[k]||"";
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'; }
+/* smooth add: item fades in at the bottom, then the whole feed glides up by its
+   height (FLIP) so it never jumps -- the next item lands on freed space */
+function addItem(m){ if(state!=="connected") return; var el=document.createElement("div");
+  if(m.t==="chip"){ el.className="chip"; el.innerHTML=chipIcon(m.ic)+"<span>"+m.x+"</span>"; }
+  else { el.className="msg "+m.t; el.textContent=m.x; }
+  el.style.opacity="0";
+  transcriptEl.appendChild(el);
+  var h=el.offsetHeight+9; // item height + gap
+  transcriptEl.style.transition="none";
+  transcriptEl.style.transform="translateY("+h+"px)";
+  void transcriptEl.offsetWidth; // force reflow
+  transcriptEl.style.transition="transform .55s cubic-bezier(.22,.61,.36,1)";
+  transcriptEl.style.transform="translateY(0)";
+  requestAnimationFrame(function(){ el.style.transition="opacity .45s ease"; el.style.opacity="1"; });
+}
+function playTranscript(){ clearTranscript(); var d=350;
+  DEMO.forEach(function(m){ revealTimers.push(setTimeout(function(){ addItem(m); },d)); d+=(m.t==="chip"?850:1250); }); }
+function clearTranscript(){ revealTimers.forEach(clearTimeout); revealTimers=[];
+  transcriptEl.style.transition="none"; transcriptEl.style.transform="none"; transcriptEl.innerHTML=""; }
+
+/* ===== live call engine: WS /ws + mic stream + Gemini audio playback ===== */
+var actx=null;
+function beep(f,d,v){ try{ actx=actx||new(window.AudioContext||window.webkitAudioContext)();
+  var o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);
+  o.frequency.value=f;g.gain.value=v||.2;g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+d/1000);
+  o.start();o.stop(actx.currentTime+d/1000);}catch(e){} }
+function getUid(){ var u=localStorage.getItem("voice_uid"); if(!u){u=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem("voice_uid",u);} return u; }
+
+var ws=null, audioCtx=null, micStream=null, processor=null, analyser=null, gainNode=null, wakeLock=null;
+var audioQueue=[], playing=false, currentSource=null;
+var reconnectAttempts=0, MAX_RECONNECT=20, intentionalClose=false;
+var silenceTimer=null, SILENCE_MS=300000, connectBeepTimer=null;
+
+/* Signed out. Forward auth refuses the /ws upgrade once the sign-in
+   session has ended, and a refused WebSocket says nothing: the call dialled,
+   retried twenty times and went quiet. Ask a plain request first: with
+   redirect:"manual" the bounce to the login page comes back as an
+   "opaqueredirect" response, which only a signed-out session produces. */
+var signedOut=false;
+function sessionAlive(){
+  return fetch("/api/agents",{redirect:"manual",cache:"no-store",headers:{Accept:"application/json"}})
+    .then(function(r){ return !(r.type==="opaqueredirect"||r.status===401); })
+    .catch(function(){ return true; }); /* offline is not signed out; the call reports its own failure */
+}
+function showSignedOut(){
+  if(signedOut)return; signedOut=true;
+  var w=document.createElement("div");
+  w.setAttribute("role","alertdialog");
+  w.style.cssText="position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:24px;background:rgba(0,0,0,.72)";
+  w.innerHTML='<div style="max-width:360px;background:var(--bg);color:var(--ink);border:1px solid var(--faint);border-radius:16px;padding:22px 24px;text-align:center">'
+    +'<div style="font-size:18px;font-weight:600;margin-bottom:8px">You have been signed out</div>'
+    +'<div style="color:var(--mute);font-size:14px;line-height:1.5;margin-bottom:18px">A call cannot connect until you sign in again.</div>'
+    +'<button type="button" style="font:inherit;font-weight:600;padding:12px 18px;border-radius:12px;border:0;background:var(--ink);color:var(--bg);cursor:pointer">Sign in again</button></div>';
+  w.querySelector("button").onclick=function(){ location.reload(); };
+  document.body.appendChild(w);
+  beep(330,250);
+}
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible"&&!signedOut) sessionAlive().then(function(ok){ if(!ok)showSignedOut(); });
+});
+
+function startCall(){
+  if(signedOut){ showSignedOut(); return; }
+  sessionAlive().then(function(ok){ if(ok) dialCall(); else showSignedOut(); });
+}
+function dialCall(){
+  intentionalClose=false; reconnectAttempts=0;
+  setState("dialing");
+  beep(880,150); if(navigator.vibrate)navigator.vibrate(100);
+  if(connectBeepTimer)clearInterval(connectBeepTimer);
+  connectBeepTimer=setInterval(function(){ beep(660,100); },1500);
+  startMic();
+  if(navigator.wakeLock&&navigator.wakeLock.request) navigator.wakeLock.request("screen").then(function(wl){wakeLock=wl;}).catch(function(){});
+}
+function stopCall(){
+  intentionalClose=true;
+  if(connectBeepTimer){clearInterval(connectBeepTimer);connectBeepTimer=null;}
+  if(silenceTimer){clearTimeout(silenceTimer);silenceTimer=null;}
+  beep(440,200); if(navigator.vibrate)navigator.vibrate([50,30,50]);
+  stopPlayback();
+  if(processor){try{processor.disconnect();}catch(e){}processor=null;}
+  if(micStream){micStream.getTracks().forEach(function(t){t.stop();});micStream=null;}
+  if(wakeLock){try{wakeLock.release();}catch(e){}wakeLock=null;}
+  if(ws){try{ws.close();}catch(e){}ws=null;}
+  if(audioCtx){try{audioCtx.close();}catch(e){}audioCtx=null;analyser=null;gainNode=null;}
+  setState("idle");
+}
+function resetSilence(){ if(silenceTimer)clearTimeout(silenceTimer); if(state!=="idle") silenceTimer=setTimeout(stopCall,SILENCE_MS); }
+
+function startMic(){
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}})
+  .then(function(stream){
+    micStream=stream;
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000});
+    var source=audioCtx.createMediaStreamSource(stream);
+    analyser=audioCtx.createAnalyser(); analyser.fftSize=256; source.connect(analyser);
+    processor=audioCtx.createScriptProcessor(4096,1,1); source.connect(processor); processor.connect(audioCtx.destination);
+    processor.onaudioprocess=function(e){ if(!ws||ws.readyState!==1)return;
+      var f=e.inputBuffer.getChannelData(0), i16=new Int16Array(f.length);
+      for(var i=0;i<f.length;i++){var sx=Math.max(-1,Math.min(1,f[i]));i16[i]=sx<0?sx*0x8000:sx*0x7FFF;}
+      ws.send(JSON.stringify({type:"audio_chunk",audio:btoa(String.fromCharCode.apply(null,new Uint8Array(i16.buffer)))})); };
+    connect();
+  }).catch(function(err){ ids.textContent="mic: "+((err&&err.name)||"blocked"); stopCall(); });
+}
+
+function connect(){
+  var proto=location.protocol==="https:"?"wss:":"ws:";
+  ws=new WebSocket(proto+"//"+location.host+"/ws");
+  ws.onopen=function(){ reconnectAttempts=0;
+    var host0=location.host.split(":")[0].split(".")[0];
+    var v=localStorage.getItem("voice_pref")||({maya:"Leda",nadine:"Kore"}[host0]||"Aoede");
+    var m=localStorage.getItem("voice_model")||"gemini-2.5-flash-native-audio-preview-09-2025";
+    var now=new Date();
+    var lt=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0")+" "+String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0");
+    ws.send(JSON.stringify({type:"init",agent:(CREW[cur]&&CREW[cur].slug)||"",uid:getUid(),voice:v,model:m,local_time:lt,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,ua:navigator.userAgent,sw:screen.width,sh:screen.height}));
+  };
+  ws.onmessage=function(e){ var msg; try{msg=JSON.parse(e.data);}catch(_){return;}
+    if(msg.type==="audio_response"){ resetSilence(); queueAudio(msg.audio); }
+    else if(msg.type==="interrupt"){ stopPlayback(); }
+    else if(msg.type==="end_call"){ stopCall(); }
+    else if(msg.type==="status"){ if(connectBeepTimer){clearInterval(connectBeepTimer);connectBeepTimer=null;} if(msg.text==="ready"){ beep(880,200); if(state!=="connected"){ setState("connected"); } else { ids.textContent="Connected"; } } }
+    else if(msg.type==="voice_change"){ localStorage.setItem("voice_pref",msg.voice); intentionalClose=true; if(ws){try{ws.close();}catch(_){}}
+      setTimeout(function(){ if(state!=="idle"){ intentionalClose=false; connect(); } },450); }
+    else if(msg.type==="error"){ if(connectBeepTimer){clearInterval(connectBeepTimer);connectBeepTimer=null;} intentionalClose=true; ids.textContent=(msg.text||"error"); setTimeout(stopCall,1600); }
+    else if(msg.type==="transcript"){ addItem({t: msg.role==="user"?"user":"agent", x: msg.text}); }
+    else if(msg.type==="chip"){ addItem({t:"chip", ic: msg.kind||"check", x: msg.text}); }
+    /* turn_complete / event are informational */
+  };
+  ws.onerror=function(){};
+  ws.onclose=function(){ if(state!=="idle"&&!intentionalClose){
+    // Signed out mid-call: every retry would be refused the same way.
+    sessionAlive().then(function(ok){ if(!ok){ stopCall(); showSignedOut(); } });
+    reconnectAttempts++;
+    if(reconnectAttempts<=MAX_RECONNECT){ beep(550,100); ids.textContent="Reconnecting "+reconnectAttempts; setTimeout(connect,Math.min(1000*reconnectAttempts,5000)); }
+    else { ids.textContent="Connection lost"; stopCall(); } } };
+}
+
+/* ----- audio playback (PCM 24kHz mono) + barge-in ----- */
+function stopPlayback(){ audioQueue=[]; if(currentSource){try{currentSource.onended=null;currentSource.stop();currentSource.disconnect();}catch(e){}currentSource=null;} playing=false; }
+function playNext(){ if(!audioQueue.length){playing=false;return;} playing=true;
+  var b64=audioQueue.shift(), raw=atob(b64), buf=new ArrayBuffer(raw.length), view=new Uint8Array(buf);
+  for(var i=0;i<raw.length;i++)view[i]=raw.charCodeAt(i);
+  var s16=new Int16Array(buf), f32=new Float32Array(s16.length);
+  for(var j=0;j<s16.length;j++)f32[j]=s16[j]/32768;
+  if(!audioCtx)return;
+  var ab=audioCtx.createBuffer(1,f32.length,24000); ab.getChannelData(0).set(f32);
+  var src=audioCtx.createBufferSource(); src.buffer=ab;
+  if(!gainNode){gainNode=audioCtx.createGain();gainNode.gain.value=1;gainNode.connect(audioCtx.destination);}
+  src.connect(gainNode); currentSource=src; src.onended=function(){currentSource=null;playNext();}; src.start();
+}
+function queueAudio(b64){ audioQueue.push(b64); if(!playing)playNext(); }
+
+/* apply a voice/model change to a LIVE call. Gemini fixes the voice per session,
+   so "on the fly" = a quick reconnect with the new init (brief re-greet). */
+function applyLiveChange(){ if(state==="idle")return; ids.textContent="switching…";
+  intentionalClose=true; if(ws){try{ws.close();}catch(_){}}
+  setTimeout(function(){ if(state!=="idle"){ intentionalClose=false; reconnectAttempts=0; connect(); } },350); }
+
+document.addEventListener("visibilitychange",function(){ if(document.hidden&&state!=="idle")stopCall(); });
+
+/* ---- contacts / settings open-close ---- */
+var contacts=document.getElementById("contacts"), settings=document.getElementById("settings");
+document.getElementById("contactsBtn").onclick=function(){ contacts.classList.add("open"); };
+document.getElementById("cBack").onclick=function(){ contacts.classList.remove("open"); };
+document.getElementById("gear").onclick=function(){ settings.classList.add("open"); };
+document.getElementById("sBack").onclick=function(){ settings.classList.remove("open"); };
+
+function renderContacts(){ var list=document.getElementById("clist"); list.innerHTML="";
+  CREW.forEach(function(a,i){ var r=document.createElement("div"); r.className="crow";
+    r.innerHTML='<span class="cav" style="background:'+grad(a)+'">'+(a.av?'<img src="'+a.av+'" alt="" loading="lazy" onerror="this.remove()">':a.n[0])+'</span><div><div class="cn">'+a.n+'</div><div class="cr">'+a.r+'</div></div>';
+    r.onclick=function(){ setAgent(i); contacts.classList.remove("open"); }; list.appendChild(r); }); }
+
+(function(){
+  var VOICES=["Aoede","Kore","Leda","Charon","Fenrir","Puck","Orus"];
+  // Pinned dated native-audio version: the floating "-latest" alias rotates between
+  // backend builds and one of them rejects the audio config (intermittent 1007).
+  var MODELS=[["gemini-2.5-flash-native-audio-preview-09-2025","2.5 native-audio","native voice"],
+              ["gemini-3.1-flash-live-preview","3.1 flash live","smarter"]];
+  var OKM=MODELS.map(function(m){return m[0];});
+  var curVoice=localStorage.getItem("voice_pref")||"Aoede";
+  var curModel=localStorage.getItem("voice_model")||MODELS[0][0];
+  if(OKM.indexOf(curModel)<0){ curModel=MODELS[0][0]; localStorage.setItem("voice_model",curModel); } // reset a stale/broken saved model
+  var mg=document.getElementById("modelGroup"), vg=document.getElementById("voiceGroup");
+  function rowEl(label,sub,on,pick){ var r=document.createElement("div");r.className="row";
+    r.innerHTML='<div><div class="lab">'+label+'</div>'+(sub?'<div class="sub">'+sub+'</div>':'')+'</div><div class="sw'+(on?' on':'')+'"></div>'; r.onclick=pick; return r; }
+  function renderModel(){ mg.innerHTML=""; MODELS.forEach(function(m){ mg.appendChild(rowEl(m[1],m[2],m[0]===curModel,function(){curModel=m[0];localStorage.setItem("voice_model",curModel);renderModel();applyLiveChange();})); }); }
+  function renderVoice(){ vg.innerHTML=""; VOICES.forEach(function(v){ vg.appendChild(rowEl(v,null,v===curVoice,function(){curVoice=v;localStorage.setItem("voice_pref",curVoice);renderVoice();applyLiveChange();})); }); }
+  renderModel(); renderVoice();
+})();
+
+/* ---- orb AROUND the button: a drifting iridescent NEBULA (not a ring) ---- */
+var oc=document.getElementById("orbCanvas"), ax=oc.getContext("2d"), t=0;
+var ORB_COLS=[[74,120,216],[47,182,160],[111,192,106],[224,168,90],[138,111,196]];
+function drawOrb(){
+  t+=0.016; ax.clearRect(0,0,424,424); var cx=212,cy=212;
+  if(state==="idle"){ requestAnimationFrame(drawOrb); return; }
+  // amp = liveliness: connected breathes with "speech", dialing stays calm
+  var amp=state==="connected"?(0.35+0.4*Math.abs(Math.sin(t*1.6)+0.4*Math.sin(t*4.7))):0.12;
+  ax.globalCompositeOperation="lighter";
+  for(var l=0;l<8;l++){
+    var c=ORB_COLS[l%ORB_COLS.length];
+    var ang=t*(0.24+l*0.045)+l*0.9;
+    var dist=22+l*7+Math.sin(t*0.7+l*1.3)*12*(0.5+amp);
+    var bx=cx+Math.cos(ang)*dist, by=cy+Math.sin(ang*1.13)*dist;
+    var rr=84+l*9+amp*36+Math.sin(t*0.9+l)*8;
+    var a=(0.05+amp*0.05)*(1-l*0.05);
+    var g=ax.createRadialGradient(bx,by,0,bx,by,rr);
+    g.addColorStop(0,"rgba("+c[0]+","+c[1]+","+c[2]+","+a+")");
+    g.addColorStop(1,"rgba("+c[0]+","+c[1]+","+c[2]+",0)");
+    ax.fillStyle=g; ax.beginPath();ax.arc(bx,by,rr,0,7);ax.fill();
+  }
+  ax.globalCompositeOperation="source-over";
+  requestAnimationFrame(drawOrb);
+} drawOrb();
+
+/* init */
+CREW=crewFallback(); setAgent(0); renderContacts();
+function loadCrew(){
+  fetch("/api/agents",{headers:{Accept:"application/json"}})
+    .then(function(r){ return r.ok?r.json():[]; })
+    .then(function(list){ var c=crewFromRoster(list); if(c.length){ CREW=c; cur=0; setAgent(0); renderContacts(); } })
+    .catch(function(){});
+}
+loadCrew();
+document.fonts.ready.then(function(){ requestAnimationFrame(function(){ setHero(true); }); });
+</script>
+</body>
+</html>

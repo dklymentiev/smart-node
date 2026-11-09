@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Agents</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css?v=20261107-2">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="agents" data-group="ai">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="10" height="10" fill="currentColor"/>
+        <rect x="9" y="9" width="10" height="10" fill="currentColor"/>
+      </svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item active" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/ai/" class="subnav-item">AI Gateway</a>
+  <a href="/integrations/" class="subnav-item">Integrations</a>
+  <a href="/tools/" class="subnav-item">Tools</a>
+  <a href="/mcp/" class="subnav-item">MCP</a>
+  <a href="/runtimes/" class="subnav-item">Runtimes</a>
+  <a href="/agents/" class="subnav-item active">Agents</a>
+  <a href="/specialists/" class="subnav-item">Specialists</a>
+  <a href="/policies/" class="subnav-item">Policies</a>
+  <a href="/limits/" class="subnav-item">Limits</a>
+  <a href="/secrets/" class="subnav-item">Secrets</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ 06 · agents</div>
+    <h1>Agents</h1>
+    <p class="lead">Autonomous workers installed on this node. Each card shows what the agent is doing right now, from the runtime's own process table. Stop ends its processes at once and keeps it from waking until you enable it again.</p>
+  </div>
+
+  <section class="stat-grid">
+    <article class="stat-card" data-stat="atotal">
+      <div class="stat-label">Agents</div>
+      <div class="stat-value" data-field="agents-total">-</div>
+      <div class="stat-foot">installed on node</div>
+    </article>
+
+    <article class="stat-card" data-stat="aactive">
+      <div class="stat-label">Active</div>
+      <div class="stat-value" data-field="agents-active">-</div>
+      <div class="stat-foot">running on schedule</div>
+    </article>
+
+    <article class="stat-card" data-stat="adisabled">
+      <div class="stat-label">Disabled</div>
+      <div class="stat-value" data-field="agents-disabled">-</div>
+      <div class="stat-foot">paused (DISABLED flag)</div>
+    </article>
+  </section>
+
+  <section class="agent-grid-wrap">
+    <div class="tools-toolbar" style="padding:0 0 12px 0;border-bottom:1px solid var(--rule-soft);margin-bottom:14px">
+      <div class="section-label">installed agents</div>
+      <div class="tools-toolbar-actions">
+        <button type="button" id="healthRefreshBtn" class="btn-ghost" title="Run health probe now and refresh health badges">Refresh health</button>
+        <a href="/agents/new/" class="btn-primary">+ New agent</a>
+      </div>
+    </div>
+    <div class="agent-grid" id="agentGrid">
+      <div class="agent-empty"><span class="sn-spinner" aria-hidden="true"></span>Loading</div>
+    </div>
+  </section>
+
+  <div class="page-meta">
+    <span class="meta-dot" id="liveDot"></span>
+    <span class="meta-text">Last refresh <span id="lastRefresh">-</span> · next in <span id="nextRefresh">-</span> s</span>
+  </div>
+</main>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.3</span>
+</footer>
+
+<script src="/assets/shell.js?v=20261107-2"></script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+[
+ {
+  "id": "eng",
+  "name": "Engineering",
+  "icon": "code",
+  "purpose": "Design, build, ship and document software"
+ },
+ {
+  "id": "qa",
+  "name": "Quality",
+  "icon": "test-tube",
+  "purpose": "Tests, reliability, release checks"
+ },
+ {
+  "id": "sec",
+  "name": "Security & Legal",
+  "icon": "shield-check",
+  "purpose": "Audits, threat models, privacy, law"
+ },
+ {
+  "id": "mkt",
+  "name": "Marketing",
+  "icon": "megaphone",
+  "purpose": "Growth, SEO, social, launches, video"
+ },
+ {
+  "id": "brand",
+  "name": "Brand",
+  "icon": "gem",
+  "purpose": "Positioning and personal brand"
+ },
+ {
+  "id": "content",
+  "name": "Content",
+  "icon": "pen-line",
+  "purpose": "Research, write, edit and publish articles"
+ },
+ {
+  "id": "product",
+  "name": "Product & UX",
+  "icon": "layout-panel-top",
+  "purpose": "What to build and for whom, plus customer voices"
+ },
+ {
+  "id": "research",
+  "name": "Research",
+  "icon": "search",
+  "purpose": "Markets, competitors, data"
+ },
+ {
+  "id": "strategy",
+  "name": "Strategy & Business",
+  "icon": "compass",
+  "purpose": "Decisions, pricing, partnerships, ideas"
+ },
+ {
+  "id": "assist",
+  "name": "Assistants",
+  "icon": "bot",
+  "purpose": "Secretary and chat assistants on channels"
+ },
+ {
+  "id": "sales",
+  "name": "Sales",
+  "icon": "handshake",
+  "purpose": "Prospecting, deals, pipeline"
+ },
+ {
+  "id": "support",
+  "name": "Support",
+  "icon": "life-buoy",
+  "purpose": "Answer customers, resolve issues"
+ },
+ {
+  "id": "finance",
+  "name": "Finance",
+  "icon": "wallet",
+  "purpose": "Budget, accounting, reporting"
+ },
+ {
+  "id": "design",
+  "name": "Design",
+  "icon": "palette",
+  "purpose": "Visual and graphic design"
+ },
+ {
+  "id": "pm",
+  "name": "Project Management",
+  "icon": "kanban",
+  "purpose": "Plans, deadlines, coordination"
+ },
+ {
+  "id": "people",
+  "name": "People & HR",
+  "icon": "user-plus",
+  "purpose": "Hiring, onboarding, team"
+ },
+ {
+  "id": "growth",
+  "name": "Personal Growth",
+  "icon": "sprout",
+  "purpose": "Coaches for habits, learning, health, career and money"
+ },
+ {
+  "id": "personal",
+  "name": "Personal",
+  "icon": "heart-handshake",
+  "purpose": "Everyday help for one person: law, health, devices and how you feel, through your assistant"
+ }
+]

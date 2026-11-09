@@ -1,0 +1,11 @@
+[Unit]
+Description=Smart Node communication -- outbound sender timer
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=2s
+AccuracySec=1s
+Unit=smart-node-communication-send-outbound.service
+
+[Install]
+WantedBy=timers.target

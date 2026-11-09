@@ -1,0 +1,28 @@
+{% set status_color = {
+  "blocked":   "bg-orange-100 text-orange-700",
+  "escalated": "bg-fuchsia-100 text-fuchsia-700",
+  "incident":  "bg-rose-100 text-rose-700",
+  "rejected":  "bg-slate-200 text-slate-600",
+} %}
+{% if tasks %}
+<div class="bg-white border rounded-lg divide-y h-full">
+  {% for t in tasks %}
+  <a href="/ui/tasks/{{ t.id }}" class="block px-4 py-2.5 hover:bg-slate-50 transition">
+    <div class="flex items-baseline gap-2">
+      <span class="px-1.5 py-0.5 rounded text-[11px] shrink-0
+                   {{ status_color.get(t.status, 'bg-slate-100 text-slate-700') }}">{{ t.status }}</span>
+      <span class="font-mono text-xs text-slate-400 shrink-0">#{{ t.id }}</span>
+      <span class="font-medium text-sm text-slate-900 truncate">{{ t.title }}</span>
+    </div>
+    <p class="text-xs text-slate-500 mt-0.5 ml-0.5">
+      {% if t.project_slug %}{{ t.project_slug }}{% else %}<span class="text-slate-300">no project</span>{% endif %}
+      {% if t.blocked_reason %} &middot; {{ t.blocked_reason }}{% endif %}
+    </p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white border rounded-lg p-8 h-full flex items-center justify-center text-center text-sm text-slate-500">
+  <span>Nothing needs attention.</span>
+</div>
+{% endif %}

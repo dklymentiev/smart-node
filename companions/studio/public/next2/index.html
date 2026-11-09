@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>Smart Node</title>
+<!-- Installable as an app (manifest, icons, sw.js). These files skip the sign-in
+     at Traefik: the browser fetches them without the session. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Studio">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>window.__BUILD__ = '__V__';</script>
+  <link rel="stylesheet" href="/ui/tokens.css?v=__V__">
+<link rel="stylesheet" href="/ui/base.css?v=__V__">
+<link rel="stylesheet" href="/ui/components.css?v=__V__">
+<link rel="stylesheet" href="/next2/css/app.css?v=__V__">
+<link rel="stylesheet" href="/next2/css/work-map.css?v=__V__">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sb">
+    <div class="sb__top">
+      <div class="sb__brand">
+        <div class="sb__mk"><svg width="14" height="14" viewBox="0 0 20 20"><rect x="1" y="1" width="10" height="10"/><rect x="9" y="9" width="10" height="10"/></svg></div>
+        <span class="sb__brand-nm">Smart Node</span>
+        <button class="sb__collapse" id="sbCollapse" type="button" title="Collapse"><i data-lucide="chevrons-left"></i></button>
+      </div>
+
+      <div class="sb__group">
+        <div class="sb__lbl">Studio</div>
+        <div class="sb__list">
+          <div class="agent" id="navDash" title="Dashboard"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></div>
+          <div class="agent" id="navCalendar" title="Calendar"><i data-lucide="calendar"></i><span>Calendar</span></div>
+          <div class="agent" id="navChats" title="Chats"><i data-lucide="messages-square"></i><span>Chats</span></div>
+          <div class="agent" id="navDocs" title="Documents" data-needs="documents"><i data-lucide="file-text"></i><span>Documents</span></div>
+          <div class="agent" id="navAgents" title="Agents"><i data-lucide="users"></i><span>Agents</span></div>
+          <div class="agent" id="navWorkflows" title="Workflows" data-needs="workflows"><i data-lucide="git-branch"></i><span>Workflows</span></div>
+          <div class="agent" id="navSettings" title="Settings"><i data-lucide="settings"></i><span>Settings</span></div>
+        </div>
+      </div>
+
+      <div class="sb__group" data-needs="tracking">
+        <div class="sb__lbl">Planner</div>
+        <div class="sb__list">
+          <div class="agent" id="navPlannerDash" title="Planner dashboard"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></div>
+          <div class="agent" id="navWorkMap" title="Work Map"><i data-lucide="activity"></i><span>Work Map</span></div>
+          <div class="agent" id="navTasks" title="Tasks"><i data-lucide="check-square"></i><span>Tasks</span></div>
+        </div>
+      </div>
+
+      <div class="sb__group">
+        <div class="sb__lbl">My Studio</div>
+        <div id="agents" class="sb__list"></div>
+      </div>
+    </div>
+
+    <div class="sb__foot">
+      <div class="pic"></div>
+      <div class="sb__who">
+        <span class="nm" id="whoName">&hellip;</span>
+        <small>Signed in</small>
+      </div>
+      <button class="sb__ico" id="themeToggle" type="button" title="Light / dark"><i data-lucide="sun-moon"></i></button>
+      <form id="logoutForm" method="GET"><input type="hidden" name="action" value="logout"><button type="submit" class="sb__ico" id="logoutBtn" title="Sign out"><i data-lucide="log-out"></i></button></form>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <!-- on a phone the sidebar is a full-screen panel; this logo button opens it. On the
+         desktop the wrapper is display:contents and the button is hidden, so nothing moves. -->
+    <div class="main__top"><button class="sb-launch" id="sbOpen" type="button" title="Menu" aria-label="Menu"><svg width="14" height="14" viewBox="0 0 20 20"><rect x="1" y="1" width="10" height="10"/><rect x="9" y="9" width="10" height="10"/></svg></button><div class="tabs" id="tabs"><div class="sn-seg" id="mode" role="tablist"><button class="is-on" data-m="chat" role="tab" aria-selected="true">Chat</button><button data-m="canvas" role="tab" aria-selected="false">Canvas</button></div></div></div>
+
+    <div class="task mode-chat" id="task">
+      <div class="task__stage">
+        <!-- movable canvas -->
+        <div class="tcanvas" id="tcanvas">
+          <div class="chint">Drag to move the board &middot; your team puts cards here</div>
+          <div class="stream" id="stream"><div class="stream__inner" id="streamInner"></div></div>
+        </div>
+        <!-- conversation -->
+        <div class="thread">
+          <div class="thread__grip" id="threadGrip" role="separator" aria-orientation="vertical" aria-label="Resize the chat" title="Drag to resize the chat"></div>
+          <div class="thread__scroll"><div class="sn-chat" id="thread"></div></div>
+          <button class="sn-btn sn-btn--ghost thread__jump" id="threadJump" type="button" hidden
+                  aria-label="Scroll to the latest message">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6"/></svg>
+            <span id="threadJumpN"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- composer: floats over the canvas in canvas mode, sits under the thread in chat mode.
+           a field that grows, with a tray of chips (long pastes, files) above it. -->
+      <div class="composer" id="composer">
+        <div class="inner">
+          <div class="cmp__peek" id="cmpPeek" hidden></div>
+          <div class="cmp__tray" id="cmpTray" hidden></div>
+          <div class="cmp__row">
+            <button class="cmp__plus" id="cmpPlus" type="button" title="Attach files; stored with the chat"><i data-lucide="plus"></i></button>
+            <textarea id="orch" rows="1" placeholder="Ask your team to do something..."></textarea>
+            <button class="sn-send" id="orchSend" type="button" title="Send">&#8593;</button>
+          </div>
+          <input type="file" id="cmpFile" multiple hidden>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tasks view (planner-backed; shown when the Tasks nav item / /tasks is opened) -->
+    <section class="tasksv" id="tasksView" style="display:none">
+      <div class="tasksv__bar">
+        <div class="tasksv__head">
+          <h1 class="tasksv__title">Tasks</h1>
+          <span class="tasksv__sub" id="tkCount"></span>
+        </div>
+        <div class="tasksv__filters">
+          <select class="sn-field" id="fStatus"><option value="">All status</option></select>
+          <select class="sn-field" id="fPriority"><option value="">All priority</option></select>
+        </div>
+      </div>
+      <div class="tkwho" id="tkWho" role="group" aria-label="Assignee"></div>
+      <div class="tasksv__scroll">
+        <table class="tkt">
+          <thead><tr>
+            <th style="width:46px">#</th><th style="width:360px">Title</th><th style="width:200px">Project / Goal</th><th style="width:150px">Flow</th><th style="width:150px">Status</th>
+            <th style="width:96px">Priority</th><th style="width:150px">Assignee</th><th style="width:130px">Created by</th>
+            <th style="width:96px">Due</th><th style="width:112px">Updated</th>
+          </tr></thead>
+          <tbody id="tkBody"><tr class="sk-tr"><td colspan="10"><div class="skel skline w90"></div></td></tr><tr class="sk-tr"><td colspan="10"><div class="skel skline w90"></div></td></tr><tr class="sk-tr"><td colspan="10"><div class="skel skline w90"></div></td></tr><tr class="sk-tr"><td colspan="10"><div class="skel skline w90"></div></td></tr><tr class="sk-tr"><td colspan="10"><div class="skel skline w90"></div></td></tr><tr class="sk-tr"><td colspan="10"><div class="skel skline w90"></div></td></tr><tr class="sk-tr"><td colspan="10"><div class="skel skline w90"></div></td></tr><tr class="sk-tr"><td colspan="10"><div class="skel skline w90"></div></td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Planner dashboard (distinct from the node /dashboard) -->
+    <section class="dashv" id="tasksDashView" style="display:none">
+      <div class="tasksv__bar">
+        <div class="tasksv__head"><h1 class="tasksv__title">Tasks &middot; Overview</h1></div>
+        <div class="tdh__time tdh__time--bar" id="tdashTime"></div>
+      </div>
+      <div class="tasksv__scroll"><div class="dsh" id="tasksDashBody"></div></div>
+    </section>
+
+    <!-- Task detail view -->
+    <section class="taskd" id="taskDetail" style="display:none">
+      <div class="tasksv__bar">
+        <div class="tasksv__head">
+          <button class="taskd__back" id="tdBack" title="Back to tasks"><i data-lucide="arrow-left"></i></button>
+          <h1 class="tasksv__title" id="tdTitle">Task</h1>
+        </div>
+      </div>
+      <div class="tasksv__scroll"><div class="taskd__body" id="tdBody"></div></div>
+    </section>
+
+    <!-- Dashboard view -->
+    <section class="dashv" id="dashView" style="display:none">
+      <div class="tasksv__bar"><div class="tasksv__head"><h1 class="tasksv__title">Dashboard</h1></div></div>
+      <div class="tasksv__scroll"><div class="dsh" id="dashBody"></div></div>
+    </section>
+
+    <!-- /next2: what the agents will remind people of, and when (js/calendar.js) -->
+    <section class="tasksv calv" id="calendarView" style="display:none">
+      <div class="tasksv__bar"><div class="tasksv__head"><h2>Calendar</h2></div></div>
+      <div class="tasksv__scroll"><div class="calv__body" id="calBody"></div></div>
+    </section>
+    <section class="agp" id="agentPage" style="display:none"></section>
+    <!-- Workflows view (3 levels: list of cards -> one workflow + run history -> one run timeline) -->
+    <section class="agentsv wfv" id="workflowsView" style="display:none">
+      <div class="tasksv__bar">
+        <div class="tasksv__head">
+          <nav class="wf-crumbs" id="wfCrumbs"><span class="wf-crumb is-cur">Workflows</span></nav>
+        </div>
+      </div>
+      <div class="tasksv__scroll"><div class="wf-wrap" id="workflowsBody"></div></div>
+    </section>
+
+    <!-- Agents overview: a card per agent. Deep-link /agents lands here. -->
+    <section class="agentsv" id="agentsView" style="display:none">
+      <div class="tasksv__bar"><div class="tasksv__head"><h1 class="tasksv__title">Agents</h1></div>
+        <a class="sn-btn sn-btn--ghost" id="newAgentLink" href="/" target="_blank" rel="noopener" hidden>New agent</a></div>
+      <div class="tasksv__scroll"><div class="agrid" id="agentsGrid"></div></div>
+    </section>
+
+    <!-- Settings: the owner's notification channels and the node panel, on the
+         kit's page grammar as the agent page -->
+    <!-- a path whose module is not on this node -->
+    <section class="agp" id="missingView" style="display:none">
+      <div class="sn-page">
+        <div class="sn-page__head"><h1 class="sn-page__title" id="missingT"></h1></div>
+        <p class="sn-empty">This module is not installed on this node.</p>
+      </div>
+    </section>
+    <section class="agp" id="settingsView" style="display:none">
+      <div class="sn-page">
+        <div class="sn-page__head"><h1 class="sn-page__title">Settings</h1></div>
+        <section class="sn-section">
+          <h2 class="sn-section__title">Notifications</h2>
+          <div id="notifyChannels"><div class="sk" role="status" aria-busy="true" aria-label="Loading"><div class="skrow"><div class="skcol"><div class="skel skline w45"></div><div class="skel skline w70"></div></div></div><div class="skrow"><div class="skcol"><div class="skel skline w45"></div><div class="skel skline w70"></div></div></div><div class="skrow"><div class="skcol"><div class="skel skline w45"></div><div class="skel skline w70"></div></div></div></div></div>
+        </section>
+        <!-- What is on this node. Only shown: modules are chosen in the installer. -->
+        <section class="sn-section" id="signinCard" hidden>
+          <h2 class="sn-section__title">Sign-in</h2>
+          <div class="sn-group"><div class="sn-row"><span class="sn-row__main"><span class="sn-row__title">Password and passkeys</span><span class="sn-row__sub">Change your password, add or remove a passkey</span></span>
+            <a class="sn-btn sn-btn--ghost" id="signinLink" href="/">Open</a></div></div>
+        </section>
+
+        <section class="sn-section" id="modulesCard" hidden>
+          <h2 class="sn-section__title">Modules</h2>
+          <div class="sn-group" id="modulesList"></div>
+        </section>
+        <!-- Which version this is: for anyone, so a bug report can say. -->
+        <section class="sn-section" id="aboutCard">
+          <h2 class="sn-section__title">About</h2>
+          <div class="sn-group"><div class="sn-row"><span class="sn-row__main"><span class="sn-row__title">Smart Node <span id="aboutRelease">...</span></span><span class="sn-row__sub" id="aboutBuild"></span></span></div></div>
+        </section>
+        <!-- The node panel, for those who run the node: shown to an admin only. -->
+        <section class="sn-section" id="panelCard" hidden>
+          <h2 class="sn-section__title">Node</h2>
+          <div class="sn-group"><div class="sn-row"><span class="sn-row__main"><span class="sn-row__title">Admin panel</span><span class="sn-row__sub">Agents, rules, limits and access</span></span>
+            <a class="sn-btn sn-btn--ghost" id="panelLink" href="/" target="_blank" rel="noopener">Open</a></div></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- Work Map view (planner + event feed). The template was authored as a
+         standalone page; its body is embedded here so the Studio sidebar wraps it
+         like every other screen. Styles live in /css/work-map.css (scoped under
+         .workmapv) and the runtime in /js/work-map.js (window.renderWorkMap /
+         window.teardownWorkMap). -->
+    <section class="workmapv" id="workMapView" style="display:none">
+      <div class="top">
+        <div class="brand">Studio <span>Work Map</span></div>
+        <div class="mode">
+          <button data-mode="project" class="active">Direction</button>
+          <button data-mode="task">Tasks</button>
+          <button data-mode="agent">Agents</button>
+        </div>
+        <input class="search" id="q" placeholder="Search: project, task, agent">
+      </div>
+      <div class="wrap">
+        <div class="hero">
+          <div>
+            <h1>Where work actually goes</h1>
+            <div class="sub" id="sub"></div>
+          </div>
+          <div class="scope">
+            <button data-scope="24">24h</button>
+            <button data-scope="168" class="active">7d</button>
+            <button disabled title="needs the event feed for 30 days">30d</button>
+          </div>
+        </div>
+        <div id="boot"></div>
+        <div id="app" style="display:none">
+          <div class="nowbar" id="now"></div>
+          <div class="signalbar" id="signals"></div>
+          <div class="board">
+            <div class="map">
+              <div class="maphead"><div class="lefthead" id="lefthead">DIRECTION</div><div class="axis" id="axis"></div></div>
+              <div id="lanes"></div>
+            </div>
+            <div class="side">
+              <div class="card">
+                <div class="cardhead"><h3>ATTENTION DRIFT</h3><button class="smallbtn" id="planbtn">set plan</button></div>
+                <div id="drift"></div>
+              </div>
+              <div class="card">
+                <div class="cardhead"><h3>SIGNALS</h3>
+                  <div><button class="smallbtn active" data-feed="f">filtered</button> <button class="smallbtn" data-feed="raw">raw</button></div>
+                </div>
+                <div class="events" id="feed"></div>
+              </div>
+            </div>
+          </div>
+          <div class="legend">
+            <span><i style="background:#fff"></i>new task</span>
+            <span><i style="background:var(--green)"></i>closed</span>
+            <span><i style="background:var(--amber)"></i>under review</span>
+            <span><i style="background:var(--red)"></i>blocked</span>
+            <span>branch thickness = minutes of agent work per hour</span>
+            <span>notch on share bar = plan or usual share</span>
+          </div>
+          <p class="method">Built from the node's event feed (sn_core.events) and the planner status log. Agent work = runs of its events with gaps up to 5 minutes; each run is split across the tasks it mentions (planner call path or a four-digit number in the message text). The task supplies its project and objective. Emergent = tasks without a project, work without a task, and small projects. Other agent tools write no events, and money is not accounted for.<span class="notes" id="methodnotes"></span></p>
+        </div>
+      </div>
+      <div id="tip"></div>
+    </section>
+
+    <!-- Documents view (doci-backed): left tree | center document | right recent -->
+    <section class="docsv" id="docsView" style="display:none">
+      <aside class="docsv__col docsv__left">
+        <div class="docsv__sh"><span>Documents</span><button class="docsv__colbtn" id="dkLeftCol" type="button" title="Collapse"><i data-lucide="chevrons-left"></i></button></div>
+        <button class="docsv__exp" id="dkLeftExp" type="button" title="Show documents"><i data-lucide="chevrons-right"></i></button>
+        <div class="dktree" id="dkTree"><div class="sk" role="status" aria-busy="true" aria-label="Loading"><div class="skrow"><div class="skcol"><div class="skel skline w70"></div><div class="skel skline w45"></div></div></div><div class="skrow"><div class="skcol"><div class="skel skline w70"></div><div class="skel skline w45"></div></div></div><div class="skrow"><div class="skcol"><div class="skel skline w70"></div><div class="skel skline w45"></div></div></div><div class="skrow"><div class="skcol"><div class="skel skline w70"></div><div class="skel skline w45"></div></div></div><div class="skrow"><div class="skcol"><div class="skel skline w70"></div><div class="skel skline w45"></div></div></div></div></div>
+      </aside>
+      <div class="docsv__col docsv__mid">
+        <div class="docsv__scroll"><div class="taskd__body" id="dkCenter">
+          <div class="dk__empty">Pick a document on the left, or a recent one on the right.</div>
+        </div></div>
+      </div>
+      <aside class="docsv__col docsv__right">
+        <div class="docsv__sh"><button class="docsv__colbtn" id="dkRightCol" type="button" title="Collapse"><i data-lucide="chevrons-right"></i></button><span>Recent</span></div>
+        <button class="docsv__exp" id="dkRightExp" type="button" title="Show recent"><i data-lucide="chevrons-left"></i></button>
+        <div class="dkrecent" id="dkRecent"><div class="sk" role="status" aria-busy="true" aria-label="Loading"><div class="skrow"><div class="skcol"><div class="skel skline w70"></div><div class="skel skline w45"></div></div></div><div class="skrow"><div class="skcol"><div class="skel skline w70"></div><div class="skel skline w45"></div></div></div><div class="skrow"><div class="skcol"><div class="skel skline w70"></div><div class="skel skline w45"></div></div></div><div class="skrow"><div class="skcol"><div class="skel skline w70"></div><div class="skel skline w45"></div></div></div><div class="skrow"><div class="skcol"><div class="skel skline w70"></div><div class="skel skline w45"></div></div></div></div></div>
+      </aside>
+    </section>
+
+  </main>
+  <!-- phone only: the Studio sections at the bottom, as the sidebar has them -->
+  <nav class="sn-tabbar" id="tabbar" aria-label="Sections">
+    <button type="button" class="sn-tabbar__i" data-for="#navDash"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></button>
+    <button type="button" class="sn-tabbar__i" data-for="#navChats"><i data-lucide="messages-square"></i><span>Chats</span></button>
+    <button type="button" class="sn-tabbar__i" data-for="#navCalendar"><i data-lucide="calendar"></i><span>Calendar</span></button>
+    <button type="button" class="sn-tabbar__i" data-for="#navAgents"><i data-lucide="users"></i><span>Agents</span></button>
+    <button type="button" class="sn-tabbar__i" data-for="#navSettings"><i data-lucide="settings"></i><span>Settings</span></button>
+  </nav>
+</div>
+<!-- agent drawer (minimal: role + instruction + channels) -->
+<div class="scrim" id="scrim"></div>
+<!-- Task side drawer for the planner overview -->
+<div class="scrim" id="tdrwScrim"></div>
+<aside class="drawer tdrw" id="taskDrawer" aria-label="Task" inert>
+  <div class="tdrw__head"><h2 class="tdrw__title" id="tdrwTitle">Task</h2><button type="button" class="tchip" id="tdrwPage">Open page</button><button type="button" class="tdrw__x" id="tdrwClose" aria-label="Close">&times;</button></div>
+  <div class="tdrw__body" id="tdrwBody"></div>
+</aside>
+<script src="/vendor/lucide.min.js?v=__V__"></script>
+<!-- raised when the sign-in session has ended, before anything is lost -->
+<div class="authwall" id="authWall" role="alertdialog" aria-modal="true" aria-labelledby="authWallT" hidden>
+  <div class="authwall__card">
+    <h2 id="authWallT">You have been signed out</h2>
+    <p>Your session ended. Sign in again to continue; anything you typed is kept and will be here when you are back.</p>
+    <button class="authwall__go" id="authWallGo" type="button">Sign in again</button>
+  </div>
+</div>
+<script src="/vendor/chart.umd.min.js?v=__V__"></script>
+<script src="/vendor/d3.min.js?v=__V__"></script>
+<script src="/next2/js/prefix.js?v=__V__"></script>
+<script src="/next2/js/formatter.js?v=__V__"></script>
+<script src="/next2/js/work-map.js?v=__V__"></script>
+<script src="/next2/js/app.js?v=__V__"></script>
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () {});</script>
+<script src="/next2/js/chat-authors.js?v=__V__"></script>
+<script src="/next2/js/phone-chats.js?v=__V__"></script>
+<script src="/next2/js/chat-shell-model.js?v=__V__"></script>
+<script src="/next2/js/chat-shell.js?v=__V__"></script>
+<script src="/next2/js/chat-unread.js?v=__V__"></script>
+<script src="/next2/js/calendar.js?v=__V__"></script>
+<script src="/next2/js/agent-page.js?v=__V__"></script>
+</body>
+</html>

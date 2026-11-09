@@ -1,0 +1,44 @@
+/* Memory: search and read what the agents keep (memory/index.html, assets/memory.js). */
+.mem-bar { display: flex; gap: 10px; margin-bottom: 12px; }
+.mem-bar input[type="search"] { flex: 1; min-width: 0; font-family: inherit; font-size: 14px; padding: 9px 14px;
+  border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); color: var(--ink); outline: none; }
+.mem-bar input[type="search"]:focus { border-color: var(--ink-faint); }
+.mem-bar select { font-family: inherit; font-size: 13px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 10px;
+  background: var(--paper); color: var(--ink-2); }
+.mem-spaces { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.mem-chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border: 1px solid var(--rule);
+  border-radius: var(--sn-r-sm); background: none; color: var(--ink-2); font: 500 12.5px/1 inherit; cursor: pointer; }
+.mem-chip b { font-weight: 500; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.mem-chip:hover { color: var(--ink); }
+.mem-chip.is-on { background: var(--surface); color: var(--ink); border-color: var(--ink-faint); }
+.mem-chip.is-empty { opacity: .5; }
+.mem-wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+body.mem-doc-on .mem-wrap { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
+.mem-list { display: flex; flex-direction: column; border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
+.mem-list:empty { display: none; }
+.mem-row { display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--rule);
+  background: var(--paper); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.mem-row:last-child { border-bottom: 0; }
+.mem-row:hover { background: var(--surface); }
+.mem-row.is-open { background: var(--surface); box-shadow: inset 3px 0 0 var(--ink-faint); }
+.mem-title { font-weight: 600; font-size: 14px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mem-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--ink-mute); }
+.mem-who { color: var(--ink-2); font-weight: 500; }
+.mem-type { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11.5px; }
+.mem-preview { font-size: 13px; color: var(--ink-mute); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; }
+.mem-more { margin-top: 12px; }
+.mem-status { min-height: 1.3em; margin-top: 10px; font-size: 13px; color: var(--ink-mute); }
+.mem-status.is-bad { color: #c93b3b; }
+.mem-doc { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; padding: 16px 18px;
+  border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); }
+.mem-doc__head { display: flex; align-items: flex-start; gap: 12px; }
+.mem-doc__head h2 { flex: 1; margin: 0; font-size: 17px; line-height: 1.3; }
+.mem-doc .mem-meta { margin: 8px 0; }
+.mem-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.mem-body { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: 13.5px; line-height: 1.55; color: var(--ink); }
+@media (max-width: 900px) {
+  body.mem-doc-on .mem-wrap { grid-template-columns: minmax(0, 1fr); }
+  .mem-doc { position: fixed; inset: 12px; max-height: none; z-index: 50; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+  .mem-bar { flex-wrap: wrap; }
+}

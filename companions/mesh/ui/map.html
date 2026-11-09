@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesh -- Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="map.css?v=2">
+</head>
+<body>
+
+<div class="topbar">
+  <a class="logo" href="/ui/">MESH</a>
+  <nav>
+    <a href="/ui/">Search</a>
+    <a href="/ui/map.html" class="active">Map</a>
+    <a href="/ui/settings.html">Settings</a>
+  </nav>
+  <div class="topbar-controls">
+    <div class="view-toggle">
+      <button class="view-btn active" data-view="galaxy">Galaxy</button>
+      <button class="view-btn" data-view="timeline">Timeline</button>
+    </div>
+    <label>Limit
+      <input type="number" id="ctl-limit" value="10000" min="10" max="10000" step="500">
+    </label>
+    <label>Space
+      <select id="ctl-workspace">
+        <option value="">default</option>
+      </select>
+    </label>
+    <label>Type
+      <select id="ctl-type">
+        <option value="">all</option>
+        <option value="type:worklog">worklog</option>
+        <option value="type:note">note</option>
+        <option value="type:decision">decision</option>
+        <option value="type:task">task</option>
+        <option value="type:artifact">artifact</option>
+        <option value="type:research">research</option>
+        <option value="type:rfc">rfc</option>
+        <option value="type:discussion">discussion</option>
+        <option value="type:idea">idea</option>
+      </select>
+    </label>
+    <button id="btn-load">Load</button>
+  </div>
+  <div class="topbar-search">
+    <input id="map-q" type="text" placeholder="Search..." autofocus>
+    <button class="q-clear" id="map-q-clear">x</button>
+    <div class="search-switch" id="search-switch">
+      <div class="sw-opt active" data-mode="tx">TX</div>
+      <div class="sw-opt" data-mode="ai">AI</div>
+    </div>
+    <div class="search-timer" id="search-timer"><div class="st-bar"><div class="st-fill"></div></div><span class="st-ms"></span></div>
+  </div>
+  <div class="stats">
+    <span id="search-status"></span>
+    <span>docs: <b id="st-docs">--</b></span>
+    <span>indexed: <b id="st-idx">--</b></span>
+  </div>
+</div>
+
+<div class="loader-overlay" id="loader">
+  <div class="loader-bar-wrap"><div class="loader-bar" id="loader-bar"></div></div>
+  <div class="loader-text" id="loader-text">Loading...</div>
+</div>
+<div id="galaxy"></div>
+<div class="cluster-labels" id="cluster-labels"></div>
+<div class="cluster-labels" id="doc-cards"></div>
+<div class="lane-labels" id="lane-labels"></div>
+<div class="date-axis" id="date-axis"></div>
+<div class="map-legend" id="legend"></div>
+<div class="map-stats" id="map-stats"></div>
+<div style="position:fixed;bottom:32px;right:16px;font-size:10px;color:#555;font-family:'JetBrains Mono',monospace;" id="zoom-indicator"></div>
+<div id="tooltip"></div>
+
+<div class="search-sidebar" id="search-sidebar">
+  <div class="sidebar-header">
+    <span class="sidebar-title" id="sidebar-title">Results</span>
+    <button class="sidebar-close" id="sidebar-close">x</button>
+  </div>
+  <div class="sidebar-list" id="sidebar-list"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/ui/vendor/three/build/three.module.js",
+    "three/addons/": "/ui/vendor/three/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="js/map/main.js?v=5"></script>
+<script type="module">
+if (new URLSearchParams(window.location.search).has('demo')) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  let controls, camera, state;
+  try {
+    const sceneM = await import('./js/map/scene.js');
+    const stateM = await import('./js/map/state.js');
+    controls = sceneM.controls;
+    camera = sceneM.camera;
+    state = stateM.state;
+    console.log('[demo] Modules imported OK');
+  } catch(e) {
+    console.error('[demo] Module import failed:', e);
+  }
+
+  async function typeText(input, text, delay = 80) {
+    input.focus();
+    for (const ch of text) {
+      input.value += ch;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await sleep(delay);
+    }
+  }
+
+  async function waitForData(maxWait = 60000) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < maxWait) {
+      const loader = document.getElementById('loader');
+      const hasData = state && state.allDocs.length > 0 && state.particleSystem;
+      const loaderHidden = loader && loader.classList.contains('hidden');
+      console.log('[demo] poll: docs=' + (state?.allDocs?.length||0) + ' particles=' + !!state?.particleSystem + ' loader=' + (loaderHidden?'hidden':'visible'));
+      if (hasData || (loaderHidden && document.querySelectorAll('.legend-item').length > 0)) return true;
+      await sleep(1000);
+    }
+    return false;
+  }
+
+  async function waitForCards(min = 1, maxWait = 5000) {
+    const t0 = Date.now();
+    while (Date.now() - t0 < maxWait) {
+      if (document.querySelectorAll('.sidebar-card').length >= min) return true;
+      await sleep(200);
+    }
+    return false;
+  }
+
+  const tooltip = document.getElementById('tooltip');
+  const closeTooltip = () => { const c = tooltip.querySelector('.tt-close'); if (c) c.click(); };
+
+  // Click card: pre-hide tooltip, zoom, then reveal after camera settles
+  async function showCard(card, label) {
+    if (!card) { console.log('[demo]   showCard: no card'); return; }
+    console.log('[demo]   showCard: ' + label);
+    tooltip.style.opacity = '0';     // pre-hide before click
+    card.click();                    // triggers zoom + tooltip (invisible)
+    await sleep(1800);              // wait for zoom to finish
+    tooltip.style.opacity = '1';   // reveal tooltip
+    await sleep(3000);              // view for 3s
+    closeTooltip();
+    tooltip.style.opacity = '';    // reset for normal use
+    await sleep(500);
+  }
+
+  async function runDemo() {
+    try {
+    console.log('[demo] Waiting for data...');
+    if (!await waitForData()) { console.warn('[demo] No data, aborting'); return; }
+
+    // Override camera distance (CF may cache old scene.js with 1950)
+    if (camera) { camera.position.set(0, 200, 750); }
+    if (controls) { controls.target.set(0, 0, 0); controls.update(); }
+    await sleep(500);
+
+    console.log('[demo] Phase 1: 360 spin');
+    if (controls) { controls.autoRotate = true; controls.autoRotateSpeed = 8.0; }
+    await sleep(4000);
+    if (controls) controls.autoRotate = false;
+    await sleep(500);
+
+    const mapQ = document.getElementById('map-q');
+    const clearBtn = document.getElementById('map-q-clear');
+    const sidebarClose = document.getElementById('sidebar-close');
+    const legend = Array.from(document.querySelectorAll('.legend-item'));
+    const getCards = () => Array.from(document.querySelectorAll('.sidebar-card'));
+
+    console.log('[demo] Phase 2: Categories (' + legend.length + ' items)');
+    for (const idx of [0, Math.min(3, legend.length-1), Math.min(6, legend.length-1)]) {
+      if (legend[idx]) {
+        console.log('[demo]   category: ' + legend[idx].textContent);
+        legend[idx].click(); await sleep(2500);
+      }
+    }
+
+    console.log('[demo] Phase 3: Reset view');
+    if (controls) { controls.autoRotate = true; controls.autoRotateSpeed = 0.5; }
+    await sleep(2000);
+    if (controls) controls.autoRotate = false;
+
+    console.log('[demo] Phase 4: Text search "deploy"');
+    mapQ.value = ''; mapQ.focus();
+    await typeText(mapQ, 'deploy', 100);
+    await sleep(1500);
+
+    console.log('[demo] Phase 5: Browse text results');
+    await waitForCards(1);
+    let cards = getCards();
+    console.log('[demo]   found ' + cards.length + ' cards');
+    await showCard(cards[0], 'TX #1');
+    await showCard(cards[2], 'TX #3');
+
+    console.log('[demo] Phase 6: AI search');
+    // Fully reset previous search
+    mapQ.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(500);
+    mapQ.value = '';
+    await sleep(300);
+
+    // Intercept fetch to return deterministic results from the documents that
+    // are already loaded. Never bake identifiers from a real document store
+    // into the source tree just to make the demo repeatable.
+    const cachedResults = (state?.allDocs || []).slice(0, 20).map((doc, idx) => ({
+      guid: doc.guid,
+      similarity_score: Number((0.85 - idx * 0.002).toFixed(3))
+    }));
+    const realFetch = window.fetch;
+    window.fetch = function(url, opts) {
+      if (typeof url === 'string' && url.includes('/search')) {
+        console.log('[demo]   intercepted /search -> cached results');
+        return Promise.resolve(new Response(JSON.stringify({results: cachedResults}), {
+          status: 200, headers: {'Content-Type': 'application/json'}
+        }));
+      }
+      return realFetch.apply(this, arguments);
+    };
+
+    await typeText(mapQ, 'machine learning models', 60);
+    await sleep(500);
+
+    if (controls) { controls.autoRotate = true; controls.autoRotateSpeed = 0.4; }
+    console.log('[demo]   dispatching Enter (cached)');
+    mapQ.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    // Cached results arrive instantly, just wait for render
+    await sleep(2000);
+    if (controls) controls.autoRotate = false;
+
+    // Restore original fetch
+    window.fetch = realFetch;
+    console.log('[demo]   AI results rendered');
+    await sleep(500);
+
+    console.log('[demo] Phase 7: Browse AI results');
+    cards = getCards();
+    console.log('[demo]   found ' + cards.length + ' AI cards');
+    if (cards.length > 0) await showCard(cards[0], 'AI #1');
+    if (cards.length > 1) await showCard(cards[1], 'AI #2');
+
+    console.log('[demo] Phase 8: Close sidebar + reset');
+    // Close sidebar
+    if (sidebarClose) sidebarClose.click();
+    await sleep(300);
+    // Escape resets search highlight, positions, and camera
+    mapQ.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(1500);
+    // Force camera to correct distance
+    if (camera) { camera.position.set(0, 200, 750); }
+    if (controls) { controls.target.set(0, 0, 0); controls.update(); }
+    await sleep(1000);
+
+    console.log('[demo] Phase 9: Final spin');
+    if (controls) { controls.autoRotate = true; controls.autoRotateSpeed = 0.8; }
+    await sleep(3000);
+    if (controls) controls.autoRotate = false;
+    console.log('[demo] Done');
+
+    } catch(err) {
+      console.error('[demo] ERROR:', err);
+    }
+  }
+
+  runDemo();
+}
+</script>
+</body>
+</html>

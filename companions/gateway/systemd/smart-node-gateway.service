@@ -1,0 +1,23 @@
+[Unit]
+Description=Smart Node gateway companion (LLM egress + session-first runtime)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=smart-node-gateway
+Group=smart-node
+WorkingDirectory=/opt/smart-node/gateway
+ExecStart=/opt/smart-node/gateway/venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=true
+ProtectHome=true
+ReadWritePaths=/var/log/smart-node/gateway
+StandardOutput=append:/var/log/smart-node/gateway/service.log
+StandardError=append:/var/log/smart-node/gateway/service.log
+
+[Install]
+WantedBy=multi-user.target

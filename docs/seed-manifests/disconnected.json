@@ -1,0 +1,7 @@
+{
+  "telegram":   "disconnected",
+  "email":      "disconnected",
+  "voice":      "disconnected",
+  "anthropic":  "disconnected",
+  "openrouter": "disconnected"
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dklymentiev/doci/schemas/thread.schema.json",
+  "title": "DOCI Thread — Create Request",
+  "description": "Request body for POST /api/thread.php. Creates a thread document anchored to a passage on its parent. The thread itself becomes a document with doc_type='thread' and parent_guid set.",
+  "type": "object",
+  "required": ["parent_guid", "title", "message"],
+  "additionalProperties": false,
+  "properties": {
+    "parent_guid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "GUID of the document the thread anchors to."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "quote": {
+      "type": "string",
+      "description": "The selected passage on the parent document. Optional — without a quote the thread is page-level rather than passage-level."
+    },
+    "occurrence_index": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "0-based index of which occurrence of `quote` to anchor to. Client counts DOM occurrences before the selection. Ignored when no quote is supplied."
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "description": "First message of the thread; stored as the body of the thread document."
+    },
+    "ai_reply": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true and AI_GATEWAY_URL is configured, the server queues an AI-drafted follow-up reply. The thread document is created immediately; the reply is appended async."
+    },
+    "ai_model": {
+      "type": "string",
+      "description": "Override the model id passed to the AI gateway. Default is gateway-specific."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,50}$" },
+      "uniqueItems": true
+    }
+  }
+}

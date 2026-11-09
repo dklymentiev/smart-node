@@ -1,0 +1,9 @@
+{
+  "name": "memory",
+  "title": "Memory",
+  "provides": "long-term memory for agents",
+  "requires": [],
+  "works_without": {},
+  "sidecars": "mesh _shared",
+  "icon": "brain"
+}

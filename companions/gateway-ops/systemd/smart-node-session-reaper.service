@@ -1,0 +1,14 @@
+[Unit]
+# Extracted from reference-node into canon on 2026-08-13. It ran there since June
+# and existed in no repository, one `lxc delete` away from being gone.
+Description=Smart Node session reaper -- kill idle/orphaned agent CLI sessions by last_activity (audited)
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/smart-node/ops/session-reaper.py
+# Idle threshold in minutes. A session is reaped only if its last_activity_at is
+# this old; the gateway bumps it on every message row and, for a turn in flight,
+# on every idle sweep (SN_CLI_IDLE_SWEEP, 60s). Keep this well above that sweep
+# interval or a healthy turn becomes reapable between two stamps.
+Environment=SESSION_REAPER_IDLE_MIN=15

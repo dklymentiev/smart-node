@@ -1,0 +1,26 @@
+{
+  "verbs": {
+    "hitl-bind": {
+      "description": "bind a HITL recipient to an actor id (the script refuses without a pinned device)",
+      "tier": "A",
+      "exec": [
+        "/opt/smart-node/hitl/recipient_bindings.py"
+      ],
+      "args": [
+        "[a-z][a-z0-9_-]{0,39}",
+        "[A-Za-z0-9_-]{1,64}"
+      ]
+    },
+    "tool-install": {
+      "description": "copy a tool's <name>.sh and CLAUDE.md from the project of the same name (deploy/tool) to /srv/tools/<name>; new installs, update replaces only what this verb installed",
+      "tier": "A",
+      "exec": [
+        "/usr/local/sbin/sn-tool-install"
+      ],
+      "args": [
+        "[a-z][a-z0-9-]{1,40}",
+        "new|update"
+      ]
+    }
+  }
+}

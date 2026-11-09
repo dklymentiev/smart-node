@@ -1,0 +1,291 @@
+{% set status_color = {
+  "open":              "bg-slate-100 text-slate-700",
+  "assessing":         "bg-blue-100 text-blue-700",
+  "awaiting_approval": "bg-amber-100 text-amber-700",
+  "in_progress":       "bg-indigo-100 text-indigo-700",
+  "pending_review":    "bg-purple-100 text-purple-700",
+  "done":              "bg-emerald-100 text-emerald-700",
+  "blocked":           "bg-rose-100 text-rose-700",
+  "escalated":         "bg-orange-100 text-orange-700",
+  "rejected":          "bg-slate-200 text-slate-500",
+  "incident":          "bg-red-100 text-red-700",
+} %}
+
+{% if error %}
+<div class="mb-4 rounded bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700">
+  {{ error }}
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- Left: description, comments, log -->
+  <div class="lg:col-span-2 space-y-6">
+    <section class="bg-white border rounded-lg p-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Description</h3>
+      {% if task.description %}
+      <p class="text-sm whitespace-pre-line">{{ task.description }}</p>
+      {% else %}
+      <p class="text-sm text-slate-400 italic">No description.</p>
+      {% endif %}
+    </section>
+
+    <section class="bg-white border rounded-lg p-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Comments</h3>
+      {% if comments %}
+      <ul class="space-y-3 mb-4">
+        {% for c in comments %}
+        <li class="text-sm">
+          <div class="flex items-baseline gap-2 text-xs text-slate-500 mb-1">
+            <span class="font-mono">{{ c.author }}</span>
+            <span>{{ c.created_at.strftime("%Y-%m-%d %H:%M") }}</span>
+            {% if c.comment_type %}
+            <span class="px-1 rounded bg-slate-100">{{ c.comment_type }}</span>
+            {% endif %}
+          </div>
+          <p class="whitespace-pre-line">{{ c.content }}</p>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-sm text-slate-400 italic mb-4">No comments yet.</p>
+      {% endif %}
+      <form hx-post="/ui/tasks/{{ task.id }}/comment" hx-target="#task-detail" hx-swap="innerHTML"
+            class="space-y-2">
+        <textarea name="content" rows="2" required
+                  class="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                  placeholder="Add a comment..."></textarea>
+        <button class="text-xs px-2 py-1 rounded bg-slate-900 text-white hover:bg-slate-800">Add comment</button>
+      </form>
+    </section>
+
+    <section class="bg-white border rounded-lg p-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Activity log</h3>
+      {% if log %}
+      <ul class="space-y-1 text-xs font-mono">
+        {% for l in log %}
+        <li class="flex items-baseline gap-2">
+          <span class="text-slate-400">{{ l.created_at.strftime("%m-%d %H:%M") }}</span>
+          <span class="text-slate-600">{{ l.actor }}</span>
+          <span class="text-slate-700">{{ l.action }}</span>
+          {% if l.old_value or l.new_value %}
+          <span class="text-slate-500">{{ l.old_value or "&empty;" | safe }} -&gt; {{ l.new_value or "&empty;" | safe }}</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-sm text-slate-400 italic">No activity yet.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <!-- Right: status, transitions, metadata, tags, links, relations -->
+  <div class="space-y-6">
+    <section class="bg-white border rounded-lg p-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Status</h3>
+      <div class="flex items-baseline justify-between mb-3">
+        <span class="px-2 py-1 rounded text-sm {{ status_color.get(task.status, 'bg-slate-100') }}">{{ task.status }}</span>
+        <span class="text-xs text-slate-500">{{ task.priority }}</span>
+      </div>
+      {% if transitions %}
+      <form hx-post="/ui/tasks/{{ task.id }}/transition" hx-target="#task-detail" hx-swap="innerHTML"
+            class="flex flex-wrap gap-1">
+        <input name="comment" type="text" placeholder="comment (a close or a stop needs one)"
+               class="w-full text-xs px-2 py-1 mb-1 rounded border border-slate-300">
+        {% for t in transitions %}
+        <button name="to" value="{{ t }}"
+                class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">
+          -&gt; {{ t }}
+        </button>
+        {% endfor %}
+      </form>
+      {% else %}
+      <p class="text-xs text-slate-400 italic">No transitions available.</p>
+      {% endif %}
+    </section>
+
+    <section class="bg-white border rounded-lg p-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Details</h3>
+      <form hx-post="/ui/tasks/{{ task.id }}/edit" hx-target="#task-detail" hx-swap="innerHTML"
+            class="space-y-2 text-sm">
+
+        <div>
+          <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Project</label>
+          <select name="project_id" class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+            <option value="">— none —</option>
+            {% for p in projects %}
+            <option value="{{ p.id }}" {% if task.project_id == p.id %}selected{% endif %}>{{ p.title }} ({{ p.slug }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Objective</label>
+          <select name="objective_id" class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+            <option value="">— none —</option>
+            {% for o in objectives %}
+            <option value="{{ o.id }}" {% if task.objective_id == o.id %}selected{% endif %}>[{{ o.type }}] {{ o.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Assignee</label>
+            <select name="assignee" class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+              <option value="">— unassigned —</option>
+              {% for a in actors %}
+              <option value="{{ a.id }}" {% if task.assignee == a.id %}selected{% endif %}>{{ a.id }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Requester</label>
+            <select name="requester" class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+              <option value="">—</option>
+              {% for a in actors %}
+              <option value="{{ a.id }}" {% if task.requester == a.id %}selected{% endif %}>{{ a.id }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Priority</label>
+            <select name="priority" class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+              {% for p in all_priorities %}
+              <option value="{{ p }}" {% if task.priority == p %}selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Complexity</label>
+            <select name="complexity_hint" class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+              <option value="">—</option>
+              {% for c in all_complexities %}
+              <option value="{{ c }}" {% if task.complexity_hint == c %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Due date</label>
+            <input name="due_date" type="date"
+                   value="{{ task.due_date.isoformat() if task.due_date else '' }}"
+                   class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+          </div>
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">ETA</label>
+            <input name="eta" type="text" value="{{ task.eta or '' }}"
+                   class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Scope</label>
+          <input name="scope" type="text" value="{{ task.scope or '' }}"
+                 class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Blocked by (task #)</label>
+            <input name="blocked_by" type="number" min="1"
+                   value="{{ task.blocked_by or '' }}"
+                   class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+          </div>
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Blocked reason</label>
+            <select name="blocked_reason" class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+              <option value="">—</option>
+              {% for r in all_blocked_reasons %}
+              <option value="{{ r }}" {% if task.blocked_reason == r %}selected{% endif %}>{{ r }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">External detail</label>
+          <input name="external_detail" type="text" value="{{ task.external_detail or '' }}"
+                 placeholder="e.g. IT approval request"
+                 class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+        </div>
+
+        <button type="submit"
+                class="mt-2 text-xs px-3 py-1.5 rounded bg-slate-900 text-white hover:bg-slate-800">
+          Save details
+        </button>
+      </form>
+
+      <p class="mt-3 text-[11px] text-slate-400">
+        Created {{ task.created_at.strftime("%Y-%m-%d %H:%M") }}{% if task.updated_at and task.updated_at != task.created_at %} &middot; updated {{ task.updated_at.strftime("%Y-%m-%d %H:%M") }}{% endif %}
+      </p>
+    </section>
+
+    <section class="bg-white border rounded-lg p-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Tags</h3>
+      {% if tags %}
+      <div class="mb-3 flex flex-wrap gap-1">
+        {% for t in tags %}
+        <span class="text-xs px-2 py-0.5 rounded bg-slate-100 border border-slate-200">{{ t }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <form hx-post="/ui/tasks/{{ task.id }}/tag" hx-target="#task-detail" hx-swap="innerHTML"
+            class="flex gap-1">
+        <input name="tag" type="text" placeholder="add-a-tag"
+               class="flex-1 rounded border border-slate-300 px-2 py-1 text-xs">
+        <button class="text-xs px-2 py-1 rounded bg-slate-900 text-white hover:bg-slate-800">Add</button>
+      </form>
+    </section>
+
+    <section class="bg-white border rounded-lg p-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Links</h3>
+      {% if links %}
+      <ul class="mb-3 space-y-1 text-sm">
+        {% for l in links %}
+        <li>
+          <a href="{{ l.url }}" target="_blank" rel="noopener" class="text-blue-600 hover:underline truncate block">
+            <span class="text-xs text-slate-500 mr-1">[{{ l.kind }}]</span>{{ l.label or l.url }}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      <form hx-post="/ui/tasks/{{ task.id }}/link" hx-target="#task-detail" hx-swap="innerHTML"
+            class="space-y-1">
+        <div class="flex gap-1">
+          <input name="kind" type="text" placeholder="kind (pr, doc...)" required
+                 class="w-1/3 rounded border border-slate-300 px-2 py-1 text-xs">
+          <input name="url" type="url" placeholder="https://" required
+                 class="flex-1 rounded border border-slate-300 px-2 py-1 text-xs">
+        </div>
+        <input name="label" type="text" placeholder="label (optional)"
+               class="w-full rounded border border-slate-300 px-2 py-1 text-xs">
+        <button class="text-xs px-2 py-1 rounded bg-slate-900 text-white hover:bg-slate-800">Add link</button>
+      </form>
+    </section>
+
+    {% if relations_out or relations_in %}
+    <section class="bg-white border rounded-lg p-4">
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Relations</h3>
+      <ul class="text-sm space-y-1">
+        {% for r in relations_out %}
+        <li><span class="text-slate-500 text-xs">{{ r.relation }}:</span>
+            <a href="/ui/tasks/{{ r.related_id }}" class="text-blue-600 hover:underline">#{{ r.related_id }}</a></li>
+        {% endfor %}
+        {% for r in relations_in %}
+        <li><span class="text-slate-500 text-xs">{{ r.relation }} of:</span>
+            <a href="/ui/tasks/{{ r.task_id }}" class="text-blue-600 hover:underline">#{{ r.task_id }}</a></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+
+</div>

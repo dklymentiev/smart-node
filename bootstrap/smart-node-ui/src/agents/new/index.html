@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · New agent</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="agent-new" data-group="ai">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="mark-lockup" href="/"><svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true"><rect x="1" y="1" width="10" height="10" fill="currentColor"/><rect x="9" y="9" width="10" height="10" fill="currentColor"/></svg><span class="mark-text">Smart Node</span></a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item active" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/ai/" class="subnav-item">AI Gateway</a>
+  <a href="/integrations/" class="subnav-item">Integrations</a>
+  <a href="/tools/" class="subnav-item">Tools</a>
+  <a href="/mcp/" class="subnav-item">MCP</a>
+  <a href="/runtimes/" class="subnav-item">Runtimes</a>
+  <a href="/agents/" class="subnav-item active">Agents</a>
+  <a href="/specialists/" class="subnav-item">Specialists</a>
+  <a href="/policies/" class="subnav-item">Policies</a>
+  <a href="/limits/" class="subnav-item">Limits</a>
+  <a href="/secrets/" class="subnav-item">Secrets</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow"><a href="/agents/" style="color:inherit;text-decoration:underline;">← agents</a> · new</div>
+    <h1>New agent</h1>
+    <p class="lead">Pick a role, switch on what the agent can do, then create it. Name, model and memory are filled in from the role · open Details to adjust them.</p>
+  </div>
+
+  <form id="anForm" class="agent-form" autocomplete="off">
+    <!-- 1. Pick a role (primary) -->
+    <section class="ae-cfg-section" style="margin-top:0;padding-top:0;border-top:0">
+      <div class="section-label">1 · role</div>
+      <p class="ae-cfg-help">Who it is. The role fills in name, model and memory below.</p>
+      <div class="role-cards" id="anRoleCards"><span class="muted"><span class="sn-spinner" aria-hidden="true"></span>Loading</span></div>
+    </section>
+
+    <!-- 2. What it can do (primary) -->
+    <section class="ae-cfg-section">
+      <div class="section-label">2 · capabilities</div>
+      <p class="ae-cfg-help">What this agent is allowed to do.</p>
+      <div class="cap-switch-list" id="anCaps"><span class="muted"><span class="sn-spinner" aria-hidden="true"></span>Loading</span></div>
+    </section>
+
+    <!-- Details (collapsed; pre-filled from the role) -->
+    <details class="ae-adv-block">
+      <summary>Details · name, model, memory, prompt (filled in from the role, editable)</summary>
+      <section class="ae-cfg-section" style="border-top:0">
+        <div class="form-row form-row-split">
+          <div>
+            <label for="anTitle">Name <small>required</small></label>
+            <input type="text" id="anTitle" name="title" maxlength="200" placeholder="e.g. Project Manager">
+          </div>
+          <div>
+            <label for="anSlug">Slug <small>auto from name</small></label>
+            <input type="text" id="anSlug" name="slug" pattern="[a-z][a-z0-9\-]{1,40}" minlength="2" maxlength="41" placeholder="project-manager">
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="anDescription">Description <small>one line, shown on the card</small></label>
+          <input type="text" id="anDescription" name="description" maxlength="240">
+        </div>
+        <div class="form-row form-row-split">
+          <div>
+            <label for="anSpecialist">Specialist <small>system prompt</small></label>
+            <select id="anSpecialist" name="specialist_slug"><option value="">- none / custom -</option></select>
+          </div>
+          <div>
+            <label for="anModel">Model</label>
+            <select id="anModel" name="model">
+              <!-- filled from /api/models (shell.js fillModelSelect) -->
+              <option value="none">none (no LLM)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="anMesh">Memory <small>Mesh workspace · empty = no memory</small></label>
+          <input type="text" id="anMesh" name="mesh_workspace" maxlength="64" placeholder="e.g. sysadmin">
+        </div>
+        <details class="ae-adv">
+          <summary>Write a custom system prompt instead</summary>
+          <textarea id="anBody" name="specialist_body" class="ae-prompt-box" rows="10" placeholder="# Title&#10;&#10;You are the ... for this Smart Node.&#10;&#10;## Responsibilities&#10;- ..."></textarea>
+        </details>
+      </section>
+    </details>
+
+    <!-- Advanced -->
+    <details class="ae-adv-block">
+      <summary>Advanced · schedule, access, boundaries, department</summary>
+      <section class="ae-cfg-section" style="border-top:0">
+        <div class="form-row form-row-split">
+          <div>
+            <label for="anOsUser">System user <small>default agent-&lt;slug&gt;</small></label>
+            <input type="text" id="anOsUser" name="os_user" maxlength="64" placeholder="agent-<slug>">
+          </div>
+          <div>
+            <label for="anSchedule">Schedule (cron)</label>
+            <input type="text" id="anSchedule" name="schedule" maxlength="120" placeholder="*/15 * * * *">
+          </div>
+        </div>
+        <div class="form-row form-row-split">
+          <div>
+            <label for="anGroups">OS groups <small>comma-separated</small></label>
+            <input type="text" id="anGroups" name="os_groups" maxlength="240" placeholder="agents, docker">
+          </div>
+          <div>
+            <label for="anDept">Department</label>
+            <select id="anDept" name="department_id"><option value="">- none -</option></select>
+          </div>
+        </div>
+        <div class="form-row form-row-split">
+          <div>
+            <label for="anRead">Read paths <small>one per line</small></label>
+            <textarea id="anRead" rows="4" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:13px" placeholder="/srv/shared"></textarea>
+          </div>
+          <div>
+            <label for="anWrite">Write paths <small>one per line</small></label>
+            <textarea id="anWrite" rows="4" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:13px"></textarea>
+          </div>
+        </div>
+        <div class="form-row form-row-split">
+          <div>
+            <label for="anForbidFs">Forbidden paths <small>one per line</small></label>
+            <textarea id="anForbidFs" rows="4" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:13px" placeholder="/srv/secrets"></textarea>
+          </div>
+          <div>
+            <label for="anForbidBeh">Forbidden behavior <small>one per line</small></label>
+            <textarea id="anForbidBeh" rows="4" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:13px" placeholder="send_email&#10;delete_files"></textarea>
+          </div>
+        </div>
+      </section>
+    </details>
+
+    <div class="ae-foot">
+      <span class="form-error" id="anError"></span>
+      <div class="ae-foot-info"><span id="anHint" class="muted">Save creates the DB row + renders CLAUDE.md / agent.yaml / .mcp.json under <code>/srv/agents/</code></span></div>
+      <div class="ae-foot-actions">
+        <a href="/agents/" class="btn-ghost">Cancel</a>
+        <button type="submit" class="btn-primary" id="anSubmit">Create agent</button>
+      </div>
+    </div>
+  </form>
+</main>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.3</span>
+</footer>
+
+<script src="/assets/shell.js"></script>
+</body>
+</html>

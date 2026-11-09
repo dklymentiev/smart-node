@@ -1,0 +1,26 @@
+/* Planner: the task-status dictionaries (planner/index.html, assets/planner.js). */
+.planner-sub { margin: -6px 0 10px; color: var(--ink-mute); font-size: 13px; }
+.planner-next { margin-top: 28px; }
+.planner-table { table-layout: fixed; width: 100%; }
+.planner-table th:nth-child(1) { width: 150px; }
+.planner-table th:nth-child(2) { width: 180px; }
+.planner-table th:nth-child(4) { width: 170px; }
+.planner-table th:nth-child(5) { width: 230px; }
+.planner-table th:nth-child(6) { text-align: center; }
+.planner-table th:nth-child(7) { width: 82px; }
+.planner-table td { vertical-align: middle; }
+.planner-table td:nth-child(6) { text-align: center; }
+.planner-table .switch { vertical-align: middle; }
+.planner-table th:nth-child(6) { width: 64px; }
+.planner-table input[type="text"], .planner-table select { width: 100%; box-sizing: border-box; font-family: inherit;
+  font-size: 13px; padding: 6px 9px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.planner-table input[type="text"]:focus, .planner-table select:focus { border-color: var(--ink-faint); outline: none; }
+.planner-table .pl-effects, .planner-table .pl-code { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; }
+.planner-table span.pl-code { color: var(--ink); }
+.planner-table .pl-default { margin-left: 6px; font-size: 11px; color: var(--ink-faint); }
+.planner-status { min-height: 1.3em; margin-top: 12px; font-size: 13px; color: var(--ink-2); }
+.planner-status.is-bad { color: #c93b3b; }
+@media (max-width: 900px) {
+  .table-wrap:has(.planner-table) { overflow-x: auto; }
+  .planner-table { min-width: 860px; }
+}

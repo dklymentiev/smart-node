@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · AI Gateway</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css?v=20261107-2">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="ai" data-group="ai">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="10" height="10" fill="currentColor"/>
+        <rect x="9" y="9" width="10" height="10" fill="currentColor"/>
+      </svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item active" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/ai/" class="subnav-item active">AI Gateway</a>
+  <a href="/integrations/" class="subnav-item">Integrations</a>
+  <a href="/tools/" class="subnav-item">Tools</a>
+  <a href="/mcp/" class="subnav-item">MCP</a>
+  <a href="/runtimes/" class="subnav-item">Runtimes</a>
+  <a href="/agents/" class="subnav-item">Agents</a>
+  <a href="/specialists/" class="subnav-item">Specialists</a>
+  <a href="/policies/" class="subnav-item">Policies</a>
+  <a href="/limits/" class="subnav-item">Limits</a>
+  <a href="/secrets/" class="subnav-item">Secrets</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ 05 · ai gateway</div>
+    <h1>AI Gateway</h1>
+    <p class="lead">Single egress from this node to all LLM providers. Read live from the database via <code>/api/ai/status</code>, scoped to your tenant, refreshed every 30 s. Provider health and cache stats populate once the gateway egress service is wired in.</p>
+  </div>
+
+  <section class="stat-grid stat-grid-4">
+    <article class="stat-card" data-stat="status">
+      <div class="stat-label">Gateway</div>
+      <div class="stat-value" data-field="overall-status">-</div>
+      <div class="stat-foot" data-field="overall-foot">-</div>
+    </article>
+
+    <article class="stat-card" data-stat="active">
+      <div class="stat-label">Active sessions</div>
+      <div class="stat-value" data-field="active-sessions">-</div>
+      <div class="stat-foot" data-field="active-foot">live now</div>
+    </article>
+
+    <article class="stat-card" data-stat="providers">
+      <div class="stat-label">Providers OK</div>
+      <div class="stat-value" data-field="providers-ok">-</div>
+      <div class="stat-foot" data-field="providers-foot">of -</div>
+    </article>
+
+    <article class="stat-card" data-stat="cache">
+      <div class="stat-label">Cache hit rate</div>
+      <div class="stat-value" data-field="cache-pct">-</div>
+      <div class="stat-foot" data-field="cache-foot">- entries · · / · total</div>
+      <div class="stat-bar"><div class="stat-bar-fill" data-field="cache-bar" style="width:0%"></div></div>
+    </article>
+  </section>
+
+  <section class="ai-timeline-wrap">
+    <div class="timeline-head">
+      <div class="section-label">session timeline</div>
+      <div class="timeline-ranges" role="group" aria-label="time window">
+        <button type="button" data-range="1">1h</button>
+        <button type="button" data-range="6">6h</button>
+        <button type="button" data-range="24">24h</button>
+      </div>
+    </div>
+    <div class="timeline-card">
+    <div class="ai-timeline" id="aiTimeline" role="img" aria-label="Agent sessions over time, one bar per session from its start to its last activity, coloured by model. The same sessions are listed in the table below."></div>
+    <div class="timeline-foot" id="aiTimelineFoot"></div>
+    </div>
+  </section>
+
+  <section class="provider-grid-wrap">
+    <div class="section-label">providers</div>
+    <div class="provider-grid" id="providerGrid">
+      <div class="provider-empty"><span class="sn-spinner" aria-hidden="true"></span>Loading</div>
+    </div>
+  </section>
+
+
+  <section class="ai-budgets-wrap">
+    <div class="section-label">budgets</div>
+    <p class="provider-foot" style="margin:0 0 12px;max-width:720px">Spending here is read-only. Change node defaults and agent overrides on <a href="/limits/">Limits</a>.</p>
+    <div class="budgets-grid" id="budgetsGrid">
+      <div class="budgets-empty"><span class="sn-spinner" aria-hidden="true"></span>Loading</div>
+    </div>
+  </section>
+
+  <section class="ai-budgets-wrap">
+    <div class="section-label">context handoff</div>
+    <p class="provider-foot">When a session reaches this size the agent writes a handoff to Mesh and the next message starts clean.</p>
+    <div class="budgets-grid" id="contextGrid"></div>
+  </section>
+
+  <section class="ai-sessions-wrap">
+    <div class="ai-tabs-head">
+      <div class="sn-seg" id="aiTabs" role="tablist">
+        <button type="button" class="is-on" data-tab="sessions" role="tab">Active sessions</button>
+        <button type="button" data-tab="calls" role="tab">Model calls</button>
+      </div>
+      <span class="ai-calls-filter" id="aiCallsFilter" hidden></span>
+    </div>
+    <div data-pane="sessions">
+    <div class="table-wrap">
+      <table class="events-table ai-sessions-table" id="aiSessionsTable">
+        <thead>
+          <tr>
+            <th class="col-sid">Session</th>
+            <th class="col-source">Service</th>
+            <th class="col-model">Model</th>
+            <th class="col-created">Created</th>
+            <th class="col-active">Last active</th>
+            <th class="col-msgs">Msgs</th>
+          </tr>
+        </thead>
+        <tbody id="aiSessionsBody">
+          <tr class="empty-row"><td colspan="6"><span class="sn-spinner" aria-hidden="true"></span>Loading</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="timeline-foot" id="aiSessionsNote"></div>
+    </div>
+    <div data-pane="calls" hidden>
+    <div class="table-wrap">
+      <table class="events-table ai-calls-table" id="aiCallsTable">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Agent</th>
+            <th>Model</th>
+            <th class="num" title="Tokens sent that the cache did not hold">In</th>
+            <th class="num" title="Tokens read from the prompt cache">Cache read</th>
+            <th class="num" title="Tokens written to the prompt cache">Cache write</th>
+            <th class="num">Out</th>
+            <th class="num">Time</th>
+            <th>Ended</th>
+          </tr>
+        </thead>
+        <tbody id="aiCallsBody">
+          <tr class="empty-row"><td colspan="9">Open this tab to load the calls.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="timeline-foot" id="aiCallsNote"></div>
+    </div>
+  </section>
+
+  <div class="page-meta">
+    <span class="meta-dot" id="liveDot"></span>
+    <span class="meta-text">Last refresh <span id="lastRefresh">-</span> · next in <span id="nextRefresh">-</span> s</span>
+  </div>
+</main>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.3</span>
+</footer>
+
+<!-- Provider config modal: API-key set, or CLI (claude) connect via OAuth -->
+<div class="modal-scrim" id="gwModalScrim" hidden>
+  <div class="modal-panel" role="dialog" aria-labelledby="gwModalTitle">
+    <header class="modal-head">
+      <h2 id="gwModalTitle">Configure provider</h2>
+      <button type="button" class="modal-close" id="gwModalClose" aria-label="Close">×</button>
+    </header>
+    <div class="modal-form">
+      <p class="lead" id="gwModalStep" style="font-size:14px;margin:0 0 14px"></p>
+
+      <div id="gwKeyWrap" hidden>
+        <div class="form-row">
+          <label for="gwKeyInput">API key <small>stored encrypted on this node, never shown again</small></label>
+          <input type="password" id="gwKeyInput" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+
+      <div id="gwUrlWrap" hidden>
+        <div class="form-row">
+          <label>1 · Open this URL, sign in, copy the code</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="gwAuthUrl" readonly spellcheck="false" style="flex:1">
+            <a class="btn-ghost" id="gwAuthOpen" target="_blank" rel="noopener">Open</a>
+          </div>
+        </div>
+      </div>
+
+      <div id="gwCodeWrap" hidden>
+        <div class="form-row">
+          <label for="gwCodeInput">2 · Paste the code</label>
+          <input type="text" id="gwCodeInput" placeholder="code#state" spellcheck="false">
+        </div>
+      </div>
+
+      <div id="gwModalResult" style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;line-height:1.5;min-height:18px"></div>
+
+      <div class="modal-foot">
+        <div class="modal-foot-actions">
+          <button type="button" class="btn-ghost" id="gwModalCancel">Close</button>
+          <button type="button" class="btn-primary" id="gwModalSubmit">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/vendor/echarts.min.js?v=5.6.0"></script>
+<script src="/assets/shell.js?v=20261107-2"></script>
+</body>
+</html>

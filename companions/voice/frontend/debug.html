@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>Voice</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .status {
+            text-align: center;
+            padding: 16px;
+            font-size: 22px;
+            min-height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #aaa;
+        }
+        .status.active { color: #7fdbca; }
+
+        .main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .mic-btn {
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            border: 4px solid #7fdbca;
+            background: rgba(127, 219, 202, 0.1);
+            color: #7fdbca;
+            font-size: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mic-btn:active, .mic-btn.active {
+            background: rgba(127, 219, 202, 0.3);
+            transform: scale(1.05);
+            border-color: #ff6b6b;
+            color: #ff6b6b;
+        }
+
+        .mic-btn.active { animation: pulse 1.5s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.4); }
+            50% { box-shadow: 0 0 0 30px rgba(255, 107, 107, 0); }
+        }
+
+        .response {
+            text-align: center;
+            padding: 16px 24px;
+            font-size: 20px;
+            max-height: 150px;
+            overflow-y: auto;
+            color: #ddd;
+            line-height: 1.4;
+        }
+
+        .connection {
+            position: fixed; top: 8px; right: 12px;
+            width: 12px; height: 12px; border-radius: 50%;
+            background: #e74c3c;
+        }
+        .connection.connected { background: #2ecc71; }
+
+        .vbtn {
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 2px solid #444;
+            background: rgba(255,255,255,0.05);
+            color: #aaa;
+            font-size: 15px;
+            cursor: pointer;
+        }
+        .vbtn.active {
+            border-color: #7fdbca;
+            color: #7fdbca;
+            background: rgba(127,219,202,0.1);
+        }
+
+        .label {
+            text-align: center;
+            padding: 12px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="connection" id="connDot"></div>
+    <div class="status" id="status">Tap the microphone</div>
+    <div class="thinking" id="thinking" style="text-align:center;padding:8px 24px;font-size:13px;color:#666;max-height:60px;overflow:hidden;font-style:italic;"></div>
+    <div class="response" id="response"></div>
+
+    <div class="main">
+        <div class="mic-btn" id="micBtn">🎤</div>
+    </div>
+
+    <div class="voices" style="display:flex;gap:8px;padding:10px 16px;justify-content:center;flex-wrap:wrap;">
+        <button class="vbtn" data-voice="Puck">Puck ♂</button>
+        <button class="vbtn" data-voice="Charon">Charon ♂</button>
+        <button class="vbtn" data-voice="Fenrir">Fenrir ♂</button>
+        <button class="vbtn active" data-voice="Aoede">Aoede ♀</button>
+        <button class="vbtn" data-voice="Kore">Kore ♀</button>
+        <button class="vbtn" data-voice="Leda">Leda ♀</button>
+    </div>
+
+    <div class="label">
+        Gemini Live — full duplex
+        <span id="costDisplay" style="margin-left:12px; color:#7fdbca;"></span>
+    </div>
+
+    <script>
+        const micBtn = document.getElementById('micBtn');
+        const statusEl = document.getElementById('status');
+        const responseEl = document.getElementById('response');
+        const connDot = document.getElementById('connDot');
+
+        let ws = null;
+        let isActive = false;
+        let selectedVoice = 'Aoede';
+        let audioContext = null;
+        let mediaStream = null;
+        let processor = null;
+
+        // --- Audio Playback (PCM 24kHz from Gemini) ---
+        let playbackCtx = null;
+        let nextPlayTime = 0;
+
+        function initPlayback() {
+            if (!playbackCtx) {
+                playbackCtx = new AudioContext({ sampleRate: 24000 });
+            }
+            if (playbackCtx.state === 'suspended') {
+                playbackCtx.resume();
+            }
+        }
+
+        function playPCM(b64Data) {
+            if (!playbackCtx) return;
+
+            const raw = atob(b64Data);
+            const bytes = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+
+            const int16 = new Int16Array(bytes.buffer);
+            const float32 = new Float32Array(int16.length);
+            for (let i = 0; i < int16.length; i++) {
+                float32[i] = int16[i] / 32768;
+            }
+
+            const buffer = playbackCtx.createBuffer(1, float32.length, 24000);
+            buffer.getChannelData(0).set(float32);
+
+            const source = playbackCtx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(playbackCtx.destination);
+
+            // Schedule seamlessly
+            const now = playbackCtx.currentTime;
+            if (nextPlayTime < now) nextPlayTime = now;
+            source.start(nextPlayTime);
+            nextPlayTime += buffer.duration;
+        }
+
+        // --- Microphone → PCM 16kHz ---
+        async function startMic() {
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    sampleRate: 16000,
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                }
+            });
+
+            audioContext = new AudioContext({ sampleRate: 16000 });
+            const source = audioContext.createMediaStreamSource(mediaStream);
+
+            processor = audioContext.createScriptProcessor(4096, 1, 1);
+            processor.onaudioprocess = (e) => {
+                if (!isActive || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+                const float32 = e.inputBuffer.getChannelData(0);
+                const int16 = new Int16Array(float32.length);
+                for (let i = 0; i < float32.length; i++) {
+                    let s = Math.max(-1, Math.min(1, float32[i]));
+                    int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+
+                const uint8 = new Uint8Array(int16.buffer);
+                let binary = '';
+                for (let i = 0; i < uint8.length; i++) {
+                    binary += String.fromCharCode(uint8[i]);
+                }
+
+                ws.send(JSON.stringify({
+                    type: 'audio_chunk',
+                    audio: btoa(binary),
+                }));
+            };
+
+            source.connect(processor);
+            processor.connect(audioContext.destination);
+            console.log('[Mic] Started with AEC');
+        }
+
+        function stopMic() {
+            if (processor) { processor.disconnect(); processor = null; }
+            if (audioContext) { audioContext.close(); audioContext = null; }
+            if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+            console.log('[Mic] Stopped');
+        }
+
+        // --- WebSocket ---
+        function connect() {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+            ws.onopen = () => {
+                connDot.classList.add('connected');
+                ws.send(JSON.stringify({ type: 'set_voice', voice: selectedVoice }));
+                console.log('[WS] Connected, voice:', selectedVoice);
+            };
+
+            ws.onclose = () => {
+                connDot.classList.remove('connected');
+                if (isActive) toggleActive();
+                setStatus('Reconnecting...');
+                setTimeout(connect, 3000);
+            };
+
+            ws.onerror = () => ws.close();
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                switch (data.type) {
+                    case 'status':
+                        setStatus(data.text);
+                        break;
+                    case 'thinking':
+                        document.getElementById('thinking').textContent = data.text.substring(0, 100);
+                        console.log('[Thinking]', data.text.substring(0, 80));
+                        break;
+                    case 'response':
+                        responseEl.textContent += data.text;
+                        console.log('[Response]', data.text);
+                        break;
+                    case 'audio_response':
+                        initPlayback();
+                        playPCM(data.audio);
+                        break;
+                    case 'turn_complete':
+                        console.log('[Turn complete]', data.cost_display || '');
+                        if (data.cost_display) {
+                            document.getElementById('costDisplay').textContent = data.cost_display;
+                        }
+                        break;
+                    case 'error':
+                        console.error('[Error]', data.text);
+                        setStatus(`Error: ${data.text}`);
+                        break;
+                }
+            };
+        }
+
+        function setStatus(text) {
+            statusEl.textContent = text || 'Tap the microphone';
+            statusEl.classList.toggle('active', !!text && text !== 'Tap the microphone');
+        }
+
+        async function toggleActive() {
+            if (isActive) {
+                isActive = false;
+                micBtn.classList.remove('active');
+                stopMic();
+                setStatus('Tap the microphone');
+            } else {
+                try {
+                    isActive = true;
+                    micBtn.classList.add('active');
+                    initPlayback();
+                    await startMic();
+                    responseEl.textContent = '';
+                    setStatus('Listening... speak!');
+                } catch(e) {
+                    console.error('[Toggle]', e);
+                    setStatus('Error: ' + e.message);
+                    isActive = false;
+                    micBtn.classList.remove('active');
+                }
+            }
+        }
+
+        micBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            toggleActive();
+        });
+
+        // --- Voice selector ---
+        document.querySelectorAll('.vbtn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedVoice = btn.dataset.voice;
+                document.querySelectorAll('.vbtn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Reconnect with new voice
+                if (isActive) {
+                    stopMic();
+                    isActive = false;
+                    micBtn.classList.remove('active');
+                }
+                if (ws) ws.close();
+                // connect() will be called by onclose
+                console.log('[Voice] switched to', selectedVoice);
+            });
+        });
+
+        connect();
+    </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+    "version": 1,
+    "files": {
+        "app.css": {
+            "sha256": "85a352e3ca578735aba33ab2f94c3afa0913e4b80461aef03b1fef7bae65fcec",
+            "sri": "sha384-RxfKoWRM9R5wH7B64Cy7K/OuFpIuBmMCtkMwnkhiETr2BGbEj2W4/KSZiJPhmIJq"
+        },
+        "vendor/libsodium.js": {
+            "sha256": "9d9731995989ac2d7c73ba4fb6717e43cd2a4a4299c442b710c2d9e5065b14d1",
+            "sri": "sha384-3KUAqev6nUaNHDSTa/UjyEycVN8iMfq/UtzKf3ZDTuGSb+P3y9kMu/WCVqnLAxUB"
+        },
+        "vendor/libsodium-wrappers.js": {
+            "sha256": "d015a93315140974698318d94274ff63c6d22530d8b0e3f3770d9bfeadc7eb60",
+            "sri": "sha384-uj62oy76l27Bkf3eEP5knMYc094z6HzwAR7Rn8ZZcBBsg5nMibZXSvjRqgZMFg/L"
+        },
+        "app.js": {
+            "sha256": "864edf04c852ec17acf382cefa47b934e7774c120ca5a9e73e166f9470cc6a88",
+            "sri": "sha384-RZ9uh/B7FrQhHHr3CtcyuYlwXv1oXBXm+SZ6dOBWGQlqjyjZ25xdNcOScPtmHxVo"
+        },
+        "vendor/pdfjs/pdf.min.mjs": {
+            "sha256": "f80490490320511e5df18c580b9edd6b5db8058dceebaf6f161992e0a964b9e2",
+            "sri": "sha384-z3N/QnTq7KUG0r5jEmpE9EQ2Yw9XQxeHTtq/XWs9uR7UDmdiZAI2xGZ7t151ou8z"
+        },
+        "vendor/pdfjs/pdf.worker.min.mjs": {
+            "sha256": "8ab0e5e30031b4a06ecfddd5ae9562f0227f830ee7ec9ed1a968b134243d2386",
+            "sri": "sha384-ZsWbdAW9R0tLHblpnT9OlTG0oDnOBndXJiKFJnsmzR2TXBm7oh5eDqIyTrxseosS"
+        }
+    }
+}

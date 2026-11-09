@@ -1,0 +1,10 @@
+{
+  "name": "admin-runner",
+  "title": "System operations",
+  "provides": "runs the node's privileged operations for the panel",
+  "core": true,
+  "requires": [],
+  "works_without": {},
+  "sidecars": "admin-runner",
+  "icon": "circle-play"
+}

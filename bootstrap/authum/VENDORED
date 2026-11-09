@@ -1,0 +1,71 @@
+# Vendored: Authum
+
+This directory is a pinned, vendored snapshot of the Authum SSO service.
+B05-identity.sh builds a local Docker image from it -- the installer never
+clones an external repo at install time (reproducible, offline-capable).
+
+Upstream:  Authum repository (WebAuthn/passkey + Argon2id password,
+           Traefik forward-auth, single-file PHP)
+Commit:    e778c4d  (tag v1.0.2)
+Date:      2026-07-16
+Version:   1.0.2
+
+Contents:
+  src/index.php        verbatim from upstream -- the single-file application
+  nginx.conf           verbatim from upstream -- fastcgi to php-fpm, denies /.git /.env
+  supervisord.conf     verbatim from upstream -- runs php-fpm + nginx
+  Dockerfile           NOT verbatim -- carries one deliberate local patch, see below
+
+## The Dockerfile is patched. Do not overwrite it.
+
+1.0.7 pins the base image to php:8.3.36-fpm-alpine (CVE-2026-109618 and
+CVE-2026-109619). Keep the base on an exact patch release: the image is built
+once per VERSION, so a floating tag never picks up a PHP security fix on an
+installed node. A PHP security release means raising the pin and VERSION together.
+
+## src/index.php is ahead of upstream (read before any re-vendor)
+
+The rule below says fix upstream, then re-vendor. It has not held: 1.0.3 to 1.0.5
+were made here, and the upstream repository stands at 1.0.1. 1.0.6 is made
+here too: sessions in /app/data/sessions (the data volume) instead of /tmp, the
+collector tied to AUTHUM_SESSION_LIFETIME instead of PHP's 24 minutes, the idle
+limit checked on the server and renewed by use, and an absolute limit
+AUTHUM_SESSION_MAX_AGE (30 days) that the cookie carries. A re-vendor that copies
+the upstream index.php over this one undoes all of it; port upstream changes into
+this file.
+Test: tests/authum-session-lifetime.test.sh.
+1.0.7, here too: the session cookie is Secure unless AUTHUM_AUTH_URL is http
+(a local node on plain http), and the passkey options name the auth URL as the
+origin, the value the server already checks against.
+1.0.8, here too: on a local node (an http auth URL) the sign-in page names the
+launcher "Open Smart Node", the way in for an owner with no password or passkey.
+1.0.9, here too: on a local node the sign-in page shows no username and password
+form, only that line (interface map and look audit, 2026-10-30).
+1.0.11: the sign-in page links the shared UI kit from the Workspace (/welcome/ui/)
+instead of its own copy of the tokens; kit buttons and fields; dark follows the system; no
+"[Settings]" corner link beside the card's own Settings button.
+1.0.12: the passkey settings page on the kit too ("Sign-in settings", no "[Authum]").
+
+`RUN docker-php-ext-install opcache` is commented out here (2026-05-27). It runs
+phpize + ./configure + make inside the image and costs ~5 of B05's 8:32 wall time,
+which is also ~5 minutes on every golden bake. Authum is a low-traffic admin auth
+panel, so the perf gain does not pay for the build cost at this stage. Re-enable
+it through a pre-built image only if profiling justifies the build cost.
+
+This file used to claim all four files were "verbatim from upstream" AND tell you to
+copy the Dockerfile straight from the upstream checkout. Following the procedure as written
+silently reinstated opcache and added ~5 min per bake. Caught on 2026-07-16 during the
+1.0.1 -> 1.0.2 re-vendor, only because the diff was read before committing.
+
+## Refresh procedure
+
+Authum is security-sensitive; the snapshot lags upstream fixes. To refresh:
+  1. Copy `src/index.php`, `nginx.conf`, and `supervisord.conf` from an upstream
+     checkout into this directory.
+     For the Dockerfile: diff it against upstream and port real upstream changes by
+     hand, KEEPING the opcache line commented. Never copy it wholesale.
+  2. Update the Commit / Date above to the new upstream HEAD.
+  3. Bump STAGE_VERSION and the AUTHUM_IMAGE default tag in B05-identity.sh
+     so installed nodes rebuild on the next --verify/run.
+
+Do not edit the vendored files in place -- fix upstream, then re-vendor.

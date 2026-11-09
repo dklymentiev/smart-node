@@ -1,0 +1,25 @@
+# Source: this directory
+
+This component's source is here. It is edited in place and committed to the
+installer repository. There is no upstream to re-vendor from, and re-vendoring is
+not a maintenance action for it any more.
+
+archived-upstream: private repository, smart-node-core
+archived-on: 2026-08-15
+last-upstream-commit: 1fa3f42 (2026-08-14)
+
+Why: the separate repository and this copy were two sources for one program, and
+for a month every change landed here while the repository stood still. Rather than
+keep a second place nobody writes to but which looks primary, the repository is
+ARCHIVED -- read-only, still clonable, still holding anything never brought
+across.
+
+Vendored from the repository's frontend/ directory, NOT from the retired
+smart-node-ui, which is 1431 lines away and archived as well.
+
+# Third-party files in src/assets/vendor/
+
+- echarts.min.js -- Apache ECharts 5.6.0, Apache-2.0 (licence text in
+  echarts.LICENSE.txt beside it). Taken from the npm tarball echarts@5.6.0,
+  dist/echarts.min.js, sha256 bf4a223524e40b77c304bec67e1222cf551f14880cf42c69dc046558e11c07b1. Served from the panel image, never
+  loaded from the internet; used by the AI, Events, Messages and Health pages.

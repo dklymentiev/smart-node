@@ -1,0 +1,24 @@
+[Unit]
+Description=Smart Node communication -- dispatch layer (registry -> brin -> reply)
+After=network-online.target postgresql@16-smartnode.service smart-node-dispatcher.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=smart-node-communication
+Group=smart-node
+WorkingDirectory=/opt/smart-node/communication
+EnvironmentFile=/opt/smart-node/communication/.env
+ExecStart=/opt/smart-node/communication/venv/bin/python -m dispatch
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=true
+ProtectHome=true
+ReadWritePaths=/opt/smart-node/communication /var/log/smart-node/communication
+StandardOutput=append:/var/log/smart-node/communication/dispatch.log
+StandardError=append:/var/log/smart-node/communication/dispatch.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Edit agent</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css?v=20261107-2">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="agent-edit" data-group="ai">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="mark-lockup" href="/"><svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true"><rect x="1" y="1" width="10" height="10" fill="currentColor"/><rect x="9" y="9" width="10" height="10" fill="currentColor"/></svg><span class="mark-text">Smart Node</span></a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item active" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/ai/" class="subnav-item">AI Gateway</a>
+  <a href="/integrations/" class="subnav-item">Integrations</a>
+  <a href="/tools/" class="subnav-item">Tools</a>
+  <a href="/mcp/" class="subnav-item">MCP</a>
+  <a href="/runtimes/" class="subnav-item">Runtimes</a>
+  <a href="/agents/" class="subnav-item active">Agents</a>
+  <a href="/specialists/" class="subnav-item">Specialists</a>
+  <a href="/policies/" class="subnav-item">Policies</a>
+  <a href="/limits/" class="subnav-item">Limits</a>
+  <a href="/secrets/" class="subnav-item">Secrets</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow"><a href="/agents/" style="color:inherit;text-decoration:underline;">← agents</a> · edit</div>
+    <h1 id="agentTitle">-</h1>
+    <p class="lead">
+      <code id="agentName">…</code> ·
+      <span id="agentVersionBadge" class="muted" style="margin-left:8px"></span>
+    </p>
+  </div>
+
+  <nav class="ae-tabs" id="aeTabs" role="tablist">
+    <!-- the prompt is only ever BUILT from these settings, never edited.
+         Specialist (an editor of the composed file), Policies (kept in
+         localStorage, never reached the server) and Workflow (empty) are gone. -->
+    <button type="button" class="ae-tab is-active" data-tab="instructions" role="tab" aria-selected="true">Instructions</button>
+    <button type="button" class="ae-tab" data-tab="tools" role="tab" aria-selected="false">Tools</button>
+    <button type="button" class="ae-tab" data-tab="channels" role="tab" aria-selected="false">Channels</button>
+    <button type="button" class="ae-tab" data-tab="access" role="tab" aria-selected="false">Access</button>
+    <button type="button" class="ae-tab" data-tab="limits" role="tab" aria-selected="false">Limits</button>
+    <button type="button" class="ae-tab" data-tab="manifest" role="tab" aria-selected="false">Settings</button>
+    <button type="button" class="ae-tab" data-tab="memory" role="tab" aria-selected="false">Memory</button>
+    <button type="button" class="ae-tab" data-tab="preview" role="tab" aria-selected="false">Preview</button>
+  </nav>
+
+  <section class="ae-cfg-section" id="aeLimitsSection" data-tab-panel="limits" style="margin-top:0;padding-top:0;border-top:0">
+    <div class="section-label">limits</div>
+    <p class="ae-cfg-help">The grey value is the node default. Set an override for this agent or clear it to inherit the default again.</p>
+    <div class="table-wrap"><table class="events-table tools-table limits-table">
+      <thead><tr><th>Limit</th><th>Period</th><th>Node default</th><th>Override</th><th>Action</th><th>Warn %</th><th>Notify</th><th>Today</th><th></th></tr></thead>
+      <tbody id="agentLimitsBody"><tr><td colspan="9">Loading…</td></tr></tbody>
+    </table></div>
+    <p id="agentLimitsStatus" role="status"></p>
+  </section>
+
+  <section class="ae-cfg-section" id="aeManifestSection" data-tab-panel="manifest" style="margin-top:0;padding-top:0;border-top:0">
+    <!-- Name, Model and On duty live on Instructions only; OS groups are
+         privileges (docker is root) and are not a form field. -->
+    <div class="section-label">settings</div>
+    <div class="form-row form-row-split">
+      <div>
+        <label for="aeMfRole">Role <small>how colleagues see this agent in their Team list</small></label>
+        <input type="text" id="aeMfRole" maxlength="200">
+      </div>
+      <div>
+        <label for="aeMfSchedule">Schedule <small>cron, e.g. */10 * * * *; empty = wakes on events only</small></label>
+        <input type="text" id="aeMfSchedule" maxlength="120" placeholder="*/15 * * * *">
+      </div>
+    </div>
+    <div class="form-row">
+      <label for="aeMfDescription">Description <small>one line after the role in colleagues' Team list</small></label>
+      <input type="text" id="aeMfDescription" maxlength="240">
+    </div>
+    <div class="form-row">
+      <label for="aeMfOsUser">System user <small>set when the agent is created; read-only, the node identifies the agent by it</small></label>
+      <input type="text" id="aeMfOsUser" maxlength="64" readonly>
+    </div>
+  </section>
+
+  <section class="ae-cfg-section" id="aeAccessSection" data-tab-panel="access" style="margin-top:0;padding-top:0;border-top:0">
+    <div class="section-label">access &amp; permissions</div>
+    <p class="ae-cfg-help">Where this agent may read and write, and what it must never do. Filesystem lists are enforced on the node by OS ACL/sudoers; the panel stores them and renders them into <code>agent.yaml</code>. Forbidden behavior is an honor-system list injected into the prompt. The agent's own directory (<code>/srv/agents/&lt;slug&gt;/</code>, with <code>logs/ output/ state/</code>) is always its working dir and writable.</p>
+    <div class="form-row form-row-split">
+      <div>
+        <label for="aeAcRead">Read paths <small>one per line</small></label>
+        <textarea id="aeAcRead" rows="5" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:13px" placeholder="/srv/shared&#10;/srv/tools"></textarea>
+      </div>
+      <div>
+        <label for="aeAcWrite">Write paths <small>one per line</small></label>
+        <textarea id="aeAcWrite" rows="5" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:13px" placeholder="/srv/agents/&lt;slug&gt;/output"></textarea>
+      </div>
+    </div>
+    <div class="form-row form-row-split">
+      <div>
+        <label for="aeAcForbidFs">Forbidden paths <small>one per line · OS-denied</small></label>
+        <textarea id="aeAcForbidFs" rows="5" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:13px" placeholder="/etc&#10;/srv/secrets"></textarea>
+      </div>
+      <div>
+        <label for="aeAcForbidBehavior">Forbidden behavior <small>one per line · in prompt</small></label>
+        <textarea id="aeAcForbidBehavior" rows="5" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:13px" placeholder="send_email&#10;delete_files&#10;modify_firewall"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <section class="ae-cfg-section" data-tab-panel="tools" style="margin-top:0;padding-top:0;border-top:0">
+    <div class="section-label">tools</div>
+    <p class="ae-cfg-help">What this agent can use, by where it comes from. The switch says whether the model is offered a server or a tool on each request; the size is what it adds to every request. Switches save at once and apply from the agent's next process start (after 15 minutes without work, or a new session). R, W and D are the agent's grants, saved with Save configuration.</p>
+    <div class="ae-mt" id="aeModelTools"><span class="muted"><span class="sn-spinner" aria-hidden="true"></span>Loading</span></div>
+    <div class="ae-resolved" id="aeModelToolsNote"></div>
+  </section>
+
+  <section class="ae-cfg-section" id="aeChSection" data-tab-panel="channels" style="margin-top:0;padding-top:0;border-top:0">
+    <div class="section-label">channels</div>
+    <p class="ae-cfg-help">Bind this agent to communication channels. Toggle a channel on; for email/telegram set the address or route (instance ref). Changes save immediately to <code>sn_config.agent_channels</code>.</p>
+    <div class="cap-switch-list" id="aeChPerAgent" style="max-width:640px"><span class="muted"><span class="sn-spinner" aria-hidden="true"></span>Loading</span></div>
+    <div id="aeChSharedWrap" hidden>
+    <div class="section-label" style="margin-top:24px">shared inbound</div>
+    <p class="ae-cfg-help" style="margin-top:4px">One inbound per node, routed to the right agent internally.</p>
+    <div class="chip-row chip-row-wide" id="aeChShared"></div>
+    </div>
+    <div class="ae-resolved" id="aeChNote">-</div>
+  </section>
+
+  <style id="sx-style">
+  .sx .sx-card{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:18px 19px}
+  .sx label{display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:6px}
+  .sx .sx-ro{font-weight:400;font-size:10.5px;color:var(--ink-mute);font-family:'JetBrains Mono',ui-monospace,monospace}
+  .sx input,.sx select,.sx textarea{width:100%;border:1px solid var(--rule);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:14px;background:var(--paper);color:var(--ink)}
+  .sx textarea{resize:vertical;line-height:1.5}
+  .sx input:focus,.sx select:focus,.sx textarea:focus{outline:none;border-color:var(--ink)}
+  .sx .sx-fld{margin-bottom:0}
+  .sx .sx-identity{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--rule)}
+  .sx .sx-onduty{display:flex;align-items:center;gap:9px;padding-bottom:6px}
+  .sx .sx-onduty-lbl{font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap}
+  .sx .sx-two{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}
+  .sx .sx-two>.sx-fld{flex:1;min-width:220px}
+  .sx .sx-bridge{font-size:11.5px;color:var(--ink-mute);margin:8px 0 0}
+  .sx .sx-tlink{font-size:11px;color:var(--ink);cursor:pointer;margin-top:7px;display:inline-block;text-decoration:underline}
+  .sx .sx-head{display:flex;align-items:center;gap:10px}
+  .sx .sx-grow{flex:1}
+  .sx .sx-note{font-size:11px;color:var(--ink-mute);font-family:'JetBrains Mono',ui-monospace,monospace}
+  .sx .sx-hint{font-size:12px;color:var(--ink-mute)}
+  /* Same look as the panel's .btn-ghost / .btn-primary (Back / Save configuration
+     at the bottom of this page): the primary used --ink, near white in the dark
+     theme, and the plain one a barely visible border, so Save looked bigger than
+     Discard although both measure 38 px. */
+  .sx .sx-btn{border:1px solid var(--rule);background:var(--paper);color:var(--ink-2);border-radius:var(--radius-pill,999px);padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit}
+  .sx .sx-btn:hover{background:var(--surface);color:var(--ink)}
+  .sx .sx-btn.primary{background:var(--ink-fill);color:var(--on-fill);border-color:var(--ink-fill)}
+  .sx .sx-btn.primary:hover{background:var(--ink-fill);filter:brightness(1.12)}
+  .sx .sx-plus{font-weight:700}
+  /* the buttons stay on the right whatever the bar says: the unsaved mark keeps its place
+     when hidden, and the outcome of Save or Discard is a toast, not text before the buttons
+     */
+  .sx .sx-savebar{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:16px}
+  .sx .sx-dirty{font-size:11px;color:var(--sn-danger);font-weight:600;margin-right:auto;visibility:hidden}
+  .sx .sx-dirty.show{visibility:visible}
+  .sx .sx-savebar .sx-note{display:none}
+  .sx textarea.flash{animation:sxflash 1.1s ease-out}
+  @keyframes sxflash{0%{border-color:var(--ink);box-shadow:0 0 0 3px var(--surface)}100%{border-color:var(--rule);box-shadow:0 0 0 0 transparent}}
+  .sx .sx-tag{display:inline-flex;align-items:center;background:var(--paper);border:1px solid var(--rule);border-radius:999px;padding:3px 11px;font-size:12.5px;color:var(--ink)}
+  .sx .sx-grp{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-mute);padding:9px 12px 4px}
+  .sx .sx-ck{display:flex;gap:9px;align-items:flex-start;padding:7px 12px;cursor:pointer;border-radius:8px;font-size:13.5px;color:var(--ink)}
+  .sx .sx-ck:hover{background:var(--paper)}
+  .sx .sx-ck input{width:auto;margin-top:3px}
+  .sx .sx-msfield{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:42px;border:1px solid var(--rule);border-radius:12px;padding:8px 38px 8px 12px;cursor:pointer;background:var(--surface);position:relative}
+  .sx .sx-caret{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--ink-mute)}
+  .sx .sx-mspanel{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;background:var(--surface);border:1px solid var(--rule);border-radius:12px;box-shadow:0 14px 36px rgba(0,0,0,.16);max-height:300px;overflow:auto;padding:4px}
+  .sx .sx-kwlist{display:flex;flex-direction:column;gap:8px;margin:12px 0 8px}
+  .sx .sx-kwrow{display:flex;align-items:center;gap:11px;border:1px solid var(--rule);border-radius:10px;padding:10px 12px;background:var(--paper)}
+  .sx .sx-kwtag{font:600 10px/1 ui-monospace,monospace;letter-spacing:.5px;padding:4px 7px;border-radius:5px;color:#fff;flex:none;background:#888}
+  .sx .sx-kw-text{background:#5b7a9e}.sx .sx-kw-file{background:#7a5ba0}.sx .sx-kw-drive{background:#3a6fb0}
+  .sx .sx-kwttl.kw-open{cursor:pointer;text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px}
+  .sx .sx-kwttl.kw-open:hover{text-decoration-color:var(--ink)}
+  .sx .sx-kwpin{border:1px solid var(--rule);background:var(--paper);color:var(--ink-2);border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer;flex:none;width:auto;font-family:inherit}
+  .sx .sx-kwpin.on{background:var(--ink-fill);color:var(--on-fill);border-color:var(--ink-fill)}
+  .sx .sx-kwttl{flex:1;min-width:0;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sx .sx-kwst{font-size:11px;color:var(--ink-mute);flex:none;font-family:'JetBrains Mono',ui-monospace,monospace}
+  .sx .sx-kwdel{border:0;background:none;color:var(--ink-mute);cursor:pointer;font-size:16px;line-height:1;flex:none;width:auto}
+  .sx .sx-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:30;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:0 14px 36px rgba(0,0,0,.16);min-width:250px;padding:6px}
+  .sx-modal-back{position:fixed;inset:0;background:rgba(20,18,14,.42);z-index:60;align-items:flex-start;justify-content:center}
+  .sx-modal{background:var(--surface);border:1px solid var(--rule);border-radius:16px;max-width:520px;width:calc(100% - 36px);margin-top:9vh;box-shadow:0 24px 60px rgba(0,0,0,.25);overflow:hidden}
+  .sx-modal-h{padding:18px 22px 4px}.sx-modal-h h2{margin:0;font-size:18px;color:var(--ink)}
+  .sx-modal-b{padding:10px 22px 4px}.sx-modal-b .sx-fld{margin-bottom:12px}
+  .sx-modal label{display:block;font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:6px}
+  .sx-modal input,.sx-modal select,.sx-modal textarea{width:100%;border:1px solid var(--rule);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:14px;background:var(--paper);color:var(--ink)}
+  .sx-modal-f{display:flex;gap:10px;justify-content:flex-end;padding:14px 22px 18px;border-top:1px solid var(--rule);margin-top:8px;background:var(--paper)}
+  .sx-modal .sx-btn{border:1px solid var(--rule);background:var(--paper);color:var(--ink-2);border-radius:var(--radius-pill,999px);padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer}
+  .sx-modal .sx-btn.primary{background:var(--ink-fill);color:var(--on-fill);border-color:var(--ink-fill)}
+  .sx-err{color:#b4341f;font-size:12.5px;margin:6px 2px 0}
+  .sx-det{border:1px solid var(--rule);border-radius:12px;background:var(--surface);padding:0}
+  .sx-det>summary{list-style:none;cursor:pointer;padding:14px 16px;font-size:13px;color:var(--ink)}
+  .sx-det>summary::-webkit-details-marker{display:none}
+  .sx-det-t{font-weight:600}
+  .sx-det-b{padding:0 16px 16px}
+  .sx-pre{margin:0;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:12px 13px;font-size:11.5px;line-height:1.5;color:var(--ink);font-family:'JetBrains Mono',ui-monospace,monospace}
+  </style>
+
+  <section class="ae-cfg-section sx" data-tab-panel="instructions" style="margin-top:0;padding-top:0;border-top:0">
+    <div class="section-label">instructions</div>
+    <div class="sx-card">
+      <div class="sx-identity">
+        <div class="sx-fld" style="flex:2;min-width:200px"><label for="id-title">Name</label><input id="id-title" autocomplete="off"></div>
+        <div class="sx-fld" style="flex:1;min-width:160px"><label for="id-dept">Department</label><select id="id-dept"><option value="">&mdash; none &mdash;</option></select></div>
+        <div class="sx-fld sx-onduty"><button type="button" class="switch" id="id-enabled" role="switch" aria-checked="false" aria-labelledby="id-enabled-lbl"><span class="knob"></span></button><span class="sx-onduty-lbl" id="id-enabled-lbl">On duty</span></div>
+      </div>
+      <div class="sx-two">
+        <div class="sx-fld"><label>Specialist <span class="sx-ro">&middot; a ready-made persona; fills the instructions below</span></label><select id="ag-specialist"><option value="">&mdash; keep current &mdash;</option></select></div>
+        <div class="sx-fld"><label>Model <span class="sx-ro">&middot; which AI brain it uses</span></label><select id="ag-model"><option value="">loading models&hellip;</option></select></div>
+      </div>
+      <div class="sx-bridge">Choosing a specialist fills in the instructions below. Edit them freely, then Save.</div>
+      <span class="sx-tlink" id="reset-instr">Reset to the specialist's default instructions</span>
+      <div class="sx-fld" style="margin-top:12px"><label for="ag-instructions">Instructions <span class="sx-ro">&middot; how this assistant behaves, in plain words</span></label><textarea id="ag-instructions" style="min-height:260px"></textarea></div>
+    </div>
+
+    <div class="sx-card" id="kw-card" style="margin-top:14px" hidden>
+      <!-- the agent's documents (mesh, via:ui), the same list the Studio shows.
+           Replaces the agent_knowledge card, retired by the 2026-06-23 design.
+           Hidden until the memory module is known to be installed. -->
+      <div class="sx-head"><label style="margin:0">Documents <span class="sx-ro">&middot; what this agent knows; pinned ones are copied into the prompt, the rest it reads when needed</span></label><span class="sx-grow"></span><span class="sx-note" id="kw-note">not loaded</span></div>
+      <div id="kw-chips" class="sx-kwlist"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="sx-btn" type="button" id="kw-add"><span class="sx-plus">+</span> Text note</button>
+        <button class="sx-btn" type="button" id="kw-upload"><span class="sx-plus">+</span> Upload file</button>
+        <input type="file" id="kw-file" style="display:none" accept=".pdf,.docx,.doc,.txt,.md,.xlsx,.pptx,.html,.csv">
+      </div>
+      <div class="sx-hint" style="margin-top:8px">A change takes effect at once: the prompt is rebuilt and the agent's open conversations restart.</div>
+    </div>
+    <div id="kv-back" class="sx-modal-back" style="display:none">
+      <div class="sx-modal" role="dialog" aria-modal="true" style="max-width:760px">
+        <div class="sx-modal-h"><h2 id="kv-title">Document</h2><p class="sx-hint" id="kv-meta">the text as the agent has it</p></div>
+        <div class="sx-modal-b"><pre id="kv-text" class="sx-pre" style="max-height:60vh">loading&hellip;</pre></div>
+        <div class="sx-modal-f"><button class="sx-btn" type="button" id="kv-close">Close</button></div>
+      </div>
+    </div>
+    <div id="kw-back" class="sx-modal-back" style="display:none">
+      <div class="sx-modal" role="dialog" aria-modal="true">
+        <div class="sx-modal-h"><h2 id="kw-mtitle">Add a text note</h2><p class="sx-hint">Saved as a document of this agent. Pin it to copy it into the prompt.</p></div>
+        <div class="sx-modal-b">
+          <div class="sx-fld"><label>Title <span class="sx-ro">&middot; shown on the chip</span></label><input id="kw-mtitleinp" placeholder="e.g. Business hours" autocomplete="off"></div>
+          <div class="sx-fld"><label>Text</label><textarea id="kw-mcontent" style="min-height:120px" placeholder="e.g. Mon-Fri 9:00-18:00, address ..."></textarea></div>
+          <div id="kw-merr" class="sx-err" style="display:none"></div>
+        </div>
+        <div class="sx-modal-f"><button class="sx-btn" type="button" id="kw-mcancel">Cancel</button><button class="sx-btn primary" type="button" id="kw-madd">Add</button></div>
+      </div>
+    </div>
+
+    <div class="sx-card" style="margin-top:14px">
+      <div class="sx-head"><label style="margin:0">Rules <span class="sx-ro">&middot; short do / don't phrases written into the prompt; the model is asked, not forced</span></label><span class="sx-grow"></span><span class="sx-note" id="bd-note">not loaded</span></div>
+      <div id="bd-rules" style="margin-top:12px"><div class="sx-hint">loading rules&hellip;</div></div>
+      <div class="sx-hint" style="margin-top:8px">Pick the rules that apply. Ticking writes immediately and re-renders the prompt.</div>
+      <div style="margin-top:12px"><button class="sx-btn" type="button" id="nr-open"><span class="sx-plus">+</span> New rule</button></div>
+    </div>
+    <div id="nr-back" class="sx-modal-back" style="display:none">
+      <div class="sx-modal" role="dialog" aria-modal="true">
+        <div class="sx-modal-h"><h2>New rule</h2><p class="sx-hint">A short do / don't phrase composed into the agent's prompt.</p></div>
+        <div class="sx-modal-b">
+          <div class="sx-fld"><label>Rule <span class="sx-ro">&middot; one line</span></label><input id="nr-title" placeholder="e.g. Speak in a warm tone" autocomplete="off"></div>
+          <div class="sx-fld"><label>Longer wording <span class="sx-ro">&middot; optional</span></label><textarea id="nr-body" style="min-height:80px" placeholder="leave blank to use the line above"></textarea></div>
+          <div class="sx-fld"><label>Why <span class="sx-ro">&middot; the date and what went wrong without it</span></label><input id="nr-why" placeholder="e.g. 2026-10-15: replies went out too curt" autocomplete="off"></div>
+          <div class="sx-two">
+            <div class="sx-fld"><label>Applies to</label><select id="nr-scope"><option value="agent">Only this agent</option><option value="global">All agents (global)</option></select></div>
+            <div class="sx-fld"><label>Group</label><select id="nr-cat"><option value="communication">communication</option><option value="workflow">workflow</option><option value="safety">safety</option><option value="data-handling">data-handling</option></select></div>
+          </div>
+          <div id="nr-note" class="sx-err" style="display:none"></div>
+        </div>
+        <div class="sx-modal-f"><button class="sx-btn" type="button" id="nr-cancel">Cancel</button><button class="sx-btn primary" type="button" id="nr-add">Add</button></div>
+      </div>
+    </div>
+
+    <div class="sx-savebar">
+      <span class="sx-dirty" id="dirty-dot">&#9679; unsaved changes</span>
+      <span class="sx-note" id="save-note">loading&hellip;</span>
+      <button class="sx-btn" id="btn-discard" type="button">Discard</button>
+      <button class="sx-btn primary" id="btn-save" type="button">Save</button>
+    </div>
+  </section>
+
+  <section class="ae-cfg-section sx" data-tab-panel="memory" style="margin-top:0;padding-top:0;border-top:0">
+    <div class="section-label">memory</div>
+    <div class="sx-card">
+      <div class="sx-fld"><label>Memory workspace <span class="sx-ro">&middot; where the agent reads/writes its own state (mesh)</span></label><input id="kn-mesh" placeholder="e.g. alex-memory (leave blank for none)" autocomplete="off"><div class="sx-hint" style="margin-top:6px">Saved to sn_config.agents.mesh_workspace. Pluggable providers (mesh, mem0, local) land here later.</div></div>
+      <div class="sx-fld"><a class="sx-link" id="kn-open" href="/memory/">Open this agent's memory</a></div>
+      <script>(function () { var i = document.getElementById('kn-mesh'), a = document.getElementById('kn-open');
+        var slug = new URLSearchParams(location.search).get('name') || '';
+        function sync() { var ws = (i && i.value.trim()) || slug; a.href = '/memory/' + (ws ? '?ws=' + encodeURIComponent(ws) : ''); }
+        // the field is filled when the agent loads, after this runs: follow it
+        if (i) { i.addEventListener('input', sync); setInterval(sync, 1000); }
+        sync(); })();</script>
+      <div class="sx-savebar"><span class="sx-dirty" id="kn-dirty">&#9679; unsaved changes</span><span class="sx-note" id="kn-note">loading&hellip;</span><button class="sx-btn" id="kn-discard" type="button">Discard</button><button class="sx-btn primary" id="kn-save" type="button">Save</button></div>
+    </div>
+    <div class="sx-card" style="margin-top:14px">
+      <div class="sx-head"><label style="margin:0">Context handoff <span class="sx-ro">&middot; optional override of the node default</span></label><span class="sx-grow"></span><span class="sx-note" id="ctx-agent-note">loading&hellip;</span></div>
+      <label class="sx-ck" style="margin:12px 0"><input type="checkbox" id="ctx-agent-override"><span>Use a separate threshold for this agent</span></label>
+      <div class="sx-two">
+        <div class="sx-fld"><label for="ctx-agent-tokens">Threshold <span class="sx-ro">&middot; tokens</span></label><input type="number" id="ctx-agent-tokens" min="10000" max="1000000" step="1000" value="120000" disabled></div>
+        <label class="sx-ck" style="align-self:center"><input type="checkbox" id="ctx-agent-enabled" checked disabled><span>Handoff enabled</span></label>
+      </div>
+      <div class="sx-hint">At the boundary the current CLI writes a Mesh handoff; only after that succeeds is its session closed. The latest handoff for this conversation is injected into the clean session.</div>
+      <div class="sx-savebar"><span class="sx-dirty" id="ctx-agent-dirty">&#9679; unsaved changes</span><span class="sx-note" id="ctx-agent-effective"></span><button class="sx-btn" id="ctx-agent-discard" type="button">Discard</button><button class="sx-btn primary" id="ctx-agent-save" type="button">Save</button></div>
+    </div>
+  </section>
+
+  <section class="ae-cfg-section ae-prompt-section" data-tab-panel="preview" style="margin-top:0;padding-top:0;border-top:0">
+    <div class="ae-prompt-head">
+      <div class="section-label">system prompt</div>
+      <div class="ae-prompt-actions">
+        <button type="button" class="btn-row" id="aePromptGenerate">Generate</button>
+        <button type="button" class="btn-row" id="aePromptCopy">Copy</button>
+      </div>
+    </div>
+    <p class="ae-cfg-help">What this agent is actually told, built by the node from the settings on the other tabs. It is not edited here. Generate rebuilds it now and restarts the agent's open sessions so they read the new version.</p>
+    <textarea id="aePrompt" class="ae-prompt-box" readonly aria-label="Composed prompt"></textarea>
+    <div class="ae-prompt-stats" id="aePromptStats">not loaded</div>
+  </section>
+
+  <div class="ae-foot">
+    <button type="button" class="btn-row btn-danger" id="aeDelete" style="margin-right:auto">Delete agent</button>
+    <div class="ae-foot-info">
+      <span id="aeGrantsCount">- grants</span>
+      <span id="aeDirtyDot" class="ae-dirty" hidden> · unsaved changes</span>
+    </div>
+    <div class="ae-foot-actions">
+      <a href="/agents/" class="btn-ghost">Back</a>
+      <button type="button" class="btn-primary" id="aeSave">Save configuration</button>
+    </div>
+  </div>
+</main>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.3</span>
+</footer>
+
+<script src="/assets/shell.js?v=20261107-2"></script>
+<script src="/assets/agent-extra.js?v=20261107-2"></script>
+<script src="/assets/limits.js?v=20261107-2"></script>
+</body>
+</html>

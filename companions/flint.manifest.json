@@ -1,0 +1,12 @@
+{
+  "name": "flint",
+  "title": "Flint runtime",
+  "provides": "an agent runtime: any model through the OpenAI format (OpenRouter, a router, a local server)",
+  "requires": [],
+  "works_without": {},
+  "sidecars": "",
+  "runtime": true,
+  "default": true,
+  "core": true,
+  "icon": "flame"
+}

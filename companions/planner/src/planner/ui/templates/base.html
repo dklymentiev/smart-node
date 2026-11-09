@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ page_title or "Planner" }} -- Planner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+    .htmx-request .htmx-indicator { opacity: 1; }
+    .htmx-request.htmx-indicator { opacity: 1; }
+  </style>
+</head>
+<body class="h-full bg-slate-50 text-slate-900 antialiased">
+  {% if actor_id is defined %}
+  <header class="border-b bg-white">
+    <div class="max-w-7xl mx-auto flex items-center justify-between px-4 py-3">
+      <div class="flex items-center gap-6">
+        <a href="/ui/" class="text-lg font-semibold tracking-tight">Planner</a>
+        <nav class="flex items-center gap-4 text-sm text-slate-600">
+          <a href="/ui/" class="hover:text-slate-900">Dashboard</a>
+          <a href="/ui/projects" class="hover:text-slate-900">Projects</a>
+          <a href="/ui/tasks" class="hover:text-slate-900">Tasks</a>
+          <a href="/ui/objectives" class="hover:text-slate-900">Objectives</a>
+          <a href="/ui/keys" class="hover:text-slate-900">API keys</a>
+          <a href="/ui/docs" class="hover:text-slate-900">Docs</a>
+          <a href="/docs" class="hover:text-slate-900">API docs</a>
+        </nav>
+      </div>
+      <div class="flex items-center gap-4 text-sm">
+        <span class="text-slate-500">{{ actor_id }}</span>
+        <form method="post" action="/ui/logout" class="m-0">
+          <button class="text-slate-500 hover:text-slate-900">Sign out</button>
+        </form>
+      </div>
+    </div>
+  </header>
+  {% endif %}
+
+  <main class="{% block container_class %}max-w-7xl mx-auto{% endblock %} px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="max-w-7xl mx-auto px-4 py-6 text-xs text-slate-400">
+    Planner v{{ version }}
+  </footer>
+</body>
+</html>

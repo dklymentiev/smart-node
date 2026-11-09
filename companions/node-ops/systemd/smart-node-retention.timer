@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the Smart Node retention sweep daily
+
+[Timer]
+OnCalendar=daily
+# A fresh node should not wait until midnight for its first measurement, and a
+# node that was off over the boundary must still run rather than skip the day.
+OnBootSec=10min
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

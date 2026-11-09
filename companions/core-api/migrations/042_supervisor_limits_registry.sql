@@ -1,0 +1,16 @@
+-- Reference migration for the supervisor limits registry. A node does not execute migrations/.
+-- Executable upgrade and fresh-install DDL lives in bootstrap/B02-sn-core-schema.sql;
+-- executable idempotent data migration lives in bootstrap/B02-sn-core-seed.sql.
+--
+-- Added:
+--   sn_config.limit_defs(code PK, label, unit, control_point, description)
+--   sn_config.limit_profiles(code, scope_type, scope_id, period, value,
+--                            action, warn_at_pct, notify)
+--   sn_config.node_control(id=true, node_paused, changed_at, changed_by)
+--   sn_core.limit_notices(code, scope_type, scope_id, period_start, kind)
+--   sn_config.budget_status (view: budget usage + effective registry profile)
+--
+-- Existing budget rows seed node, agent and metadata money profiles once.
+-- Existing gateway and core-api process environments seed turn and wake defaults
+-- once, before the companion installer replaces those processes. Re-running B02
+-- adds missing definitions but never overwrites owner-edited profiles.

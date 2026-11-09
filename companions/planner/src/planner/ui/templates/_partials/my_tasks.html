@@ -1,0 +1,39 @@
+{% set status_color = {
+  "open":              "bg-slate-100 text-slate-700",
+  "assessing":         "bg-sky-100 text-sky-700",
+  "awaiting_approval": "bg-violet-100 text-violet-700",
+  "in_progress":       "bg-indigo-100 text-indigo-700",
+  "pending_review":    "bg-amber-100 text-amber-700",
+  "blocked":           "bg-orange-100 text-orange-700",
+  "escalated":         "bg-fuchsia-100 text-fuchsia-700",
+  "incident":          "bg-rose-100 text-rose-700",
+} %}
+{% set priority_color = {
+  "critical": "bg-rose-100 text-rose-700",
+  "high":     "bg-amber-100 text-amber-700",
+  "medium":   "bg-slate-100 text-slate-700",
+  "low":      "bg-slate-50 text-slate-500",
+} %}
+{% if tasks %}
+<div class="bg-white border rounded-lg divide-y h-full">
+  {% for t in tasks %}
+  <a href="/ui/tasks/{{ t.id }}" class="block px-4 py-2.5 hover:bg-slate-50 transition">
+    <div class="flex items-baseline gap-2">
+      <span class="px-1.5 py-0.5 rounded text-[11px] shrink-0
+                   {{ priority_color.get(t.priority, 'bg-slate-100 text-slate-700') }}">{{ t.priority }}</span>
+      <span class="font-mono text-xs text-slate-400 shrink-0">#{{ t.id }}</span>
+      <span class="font-medium text-sm text-slate-900 truncate">{{ t.title }}</span>
+    </div>
+    <p class="text-xs text-slate-500 mt-0.5 ml-0.5">
+      <span class="px-1 py-0.5 rounded {{ status_color.get(t.status, 'bg-slate-100 text-slate-700') }}">{{ t.status }}</span>
+      {% if t.project_slug %} &middot; {{ t.project_slug }}{% endif %}
+      {% if t.due_date %} &middot; due {{ t.due_date }}{% endif %}
+    </p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white border rounded-lg p-8 h-full flex items-center justify-center text-center text-sm text-slate-500">
+  <span>No open tasks assigned to <span class="font-mono">@{{ actor_id }}</span>.</span>
+</div>
+{% endif %}

@@ -1,0 +1,16 @@
+{
+  "telegram":   "disconnected",
+  "email":      "disconnected",
+  "voice":      "disconnected",
+  "anthropic":  { "secret_ref": "anthropic.stand_key" },
+  "openrouter": "disconnected",
+  "budgets": [
+    {
+      "scope_type": "tenant",
+      "scope_id":   "1",
+      "period":     "daily",
+      "limit_usd":  5.00,
+      "hard_limit": true
+    }
+  ]
+}

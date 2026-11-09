@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dklymentiev/doci/schemas/version.schema.json",
+  "title": "DOCI Version Entry",
+  "description": "One entry returned by GET /api/versions.php?document_guid=<g>. Versions are themselves documents (doc_type='version') whose file lives at files/.data/versions/<original_guid>/<version_guid>/index.md. Snapshots are created automatically when a thread is started against the document; manual snapshots go through POST /api/versions.php.",
+  "type": "object",
+  "required": ["guid", "original_guid", "doc_type", "title", "created_at"],
+  "additionalProperties": false,
+  "properties": {
+    "guid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Identifier of the snapshot row."
+    },
+    "original_guid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "GUID of the live document this snapshot was taken from. Stable across the chain — every version of one document shares this value."
+    },
+    "doc_type": {
+      "type": "string",
+      "enum": ["version"]
+    },
+    "title": {
+      "type": "string",
+      "description": "Title at snapshot time. May differ from the current title of the live document."
+    },
+    "summary": {
+      "type": ["string", "null"]
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the snapshot was taken. Drives the DV-N labelling order in the UI."
+    },
+    "created_by": {
+      "type": ["string", "null"]
+    },
+    "url": {
+      "type": "string",
+      "description": "Direct link to the snapshot's read-only render: `${APP_URL}/${guid}`."
+    }
+  }
+}

@@ -1,0 +1,11 @@
+[Unit]
+Description=Smart Node retention -- prune per-wake agent logs and measure journal growth
+After=network.target postgresql.service
+
+[Service]
+# The root oneshot reports its sweep through the local core-api Unix socket.
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/smart-node/ops/retention.py
+# How long a per-wake agent log is kept. The journal is NOT governed by this and
+# cannot be: sn_core.events is append-only by trigger. This script only measures it.
+Environment=SN_LOG_RETENTION_DAYS=30

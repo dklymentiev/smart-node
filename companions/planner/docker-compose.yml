@@ -1,0 +1,35 @@
+services:
+  app:
+    build: .
+    image: planner:dev
+    environment:
+      DATABASE_URL: postgresql://planner:planner@db:5432/planner
+      PLANNER_LOG_LEVEL: info
+    ports:
+      - "${PORT_OVERRIDE:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - "python -m planner.install && exec uvicorn planner.app:app --host 0.0.0.0 --port 8080"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: planner
+      POSTGRES_PASSWORD: planner
+      POSTGRES_DB: planner
+    volumes:
+      - planner_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planner -d planner"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  planner_db:

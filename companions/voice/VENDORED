@@ -1,0 +1,16 @@
+# Source: this directory
+
+This component's source is here. It is edited in place and committed to the
+installer repository. There is no upstream to re-vendor from, and re-vendoring is
+not a maintenance action for it any more.
+
+archived-upstream: private repository, smart-node-voice
+archived-on: 2026-08-15
+last-upstream-commit: 4c405c7 (2026-08-05)
+
+Why: the separate repository and this copy were two sources for one program, and
+for a month every change landed here while the repository stood still. Rather than
+keep a second place nobody writes to but which looks primary, the repository is
+ARCHIVED -- read-only, still clonable, still holding anything never brought
+across.
+

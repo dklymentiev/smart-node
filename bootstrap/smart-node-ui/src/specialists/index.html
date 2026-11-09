@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Specialists</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="specialists" data-group="ai">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="mark-lockup" href="/"><svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true"><rect x="1" y="1" width="10" height="10" fill="currentColor"/><rect x="9" y="9" width="10" height="10" fill="currentColor"/></svg><span class="mark-text">Smart Node</span></a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item active" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/ai/" class="subnav-item">AI Gateway</a>
+  <a href="/integrations/" class="subnav-item">Integrations</a>
+  <a href="/tools/" class="subnav-item">Tools</a>
+  <a href="/mcp/" class="subnav-item">MCP</a>
+  <a href="/runtimes/" class="subnav-item">Runtimes</a>
+  <a href="/agents/" class="subnav-item">Agents</a>
+  <a href="/specialists/" class="subnav-item active">Specialists</a>
+  <a href="/policies/" class="subnav-item">Policies</a>
+  <a href="/limits/" class="subnav-item">Limits</a>
+  <a href="/secrets/" class="subnav-item">Secrets</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ specialists</div>
+    <h1>Specialists</h1>
+    <p class="lead">Reusable role/personality records. One specialist (its <code>body_md</code> system prompt) can back many agents via the agent's <code>specialist_id</code>. Edit the role here once and every agent built on it inherits the change. Distinct from the read-only file library that ships with the node.</p>
+  </div>
+
+  <section class="stat-grid stat-grid-4">
+    <article class="stat-card"><div class="stat-label">Total</div><div class="stat-value" data-field="spec-total">-</div><div class="stat-foot">in database</div></article>
+    <article class="stat-card"><div class="stat-label">Specialists</div><div class="stat-value" data-field="spec-specialist">-</div><div class="stat-foot">archetype</div></article>
+    <article class="stat-card"><div class="stat-label">Reviewers</div><div class="stat-value" data-field="spec-reviewer">-</div><div class="stat-foot">archetype</div></article>
+    <article class="stat-card"><div class="stat-label">Shared</div><div class="stat-value" data-field="spec-shared">-</div><div class="stat-foot">archetype</div></article>
+  </section>
+
+  <section class="tools-toolbar">
+    <div class="section-label">registered specialists</div>
+    <div class="tools-toolbar-actions">
+      <label class="filter-inline">
+        <span>Archetype</span>
+        <select id="filterSpecArch">
+          <option value="">all</option>
+          <option value="head">head</option>
+          <option value="specialist">specialist</option>
+          <option value="reviewer">reviewer</option>
+          <option value="autonomous">autonomous</option>
+          <option value="shared">shared</option>
+        </select>
+      </label>
+      <button class="btn-row" id="specResetBtn" title="Reload from server">Refresh</button>
+      <button class="btn-primary" id="specNewBtn">+ New specialist</button>
+    </div>
+  </section>
+
+  <section class="tools-table-wrap">
+    <div class="table-wrap">
+      <table class="events-table tools-table" id="specTable">
+        <thead>
+          <tr>
+            <th class="col-name">Slug</th>
+            <th class="col-title">Name</th>
+            <th class="col-kind">Archetype</th>
+            <th class="col-status">Version</th>
+            <th class="col-tags">Body</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="specBody">
+          <tr class="empty-row"><td colspan="6"><span class="sn-spinner" aria-hidden="true"></span>Loading</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="page-meta">
+    <span class="meta-dot live" id="liveDot"></span>
+    <span class="meta-text">Live from the database · sn_config.specialists</span>
+  </div>
+</main>
+
+<!-- Specialist modal (create + edit) -->
+<div class="modal-scrim" id="specModalScrim" hidden>
+  <div class="modal-panel modal-panel-wide" role="dialog" aria-labelledby="specModalTitle">
+    <header class="modal-head">
+      <h2 id="specModalTitle">New specialist</h2>
+      <button type="button" class="modal-close" id="specModalClose" aria-label="Close">×</button>
+    </header>
+    <form id="specForm" class="modal-form" autocomplete="off">
+      <input type="hidden" name="original_slug" value="">
+      <div class="form-row form-row-split">
+        <div>
+          <label for="specSlug">Slug <small>required · lowercase, dashes</small></label>
+          <input type="text" id="specSlug" name="slug" pattern="[a-z][a-z0-9\-]{1,60}" minlength="2" maxlength="61" required>
+        </div>
+        <div>
+          <label for="specArch">Archetype</label>
+          <select id="specArch" name="archetype">
+            <option value="">- none -</option>
+            <option value="head">head</option>
+            <option value="specialist">specialist</option>
+            <option value="reviewer">reviewer</option>
+            <option value="autonomous">autonomous</option>
+            <option value="shared">shared</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="specName">Name <small>required · human label</small></label>
+        <input type="text" id="specName" name="name" maxlength="200" required>
+      </div>
+      <div class="form-row">
+        <label for="specBodyMd">Body (markdown) <small>the system-prompt body injected for agents built on this specialist</small></label>
+        <textarea id="specBodyMd" name="body_md" rows="14" spellcheck="false" style="font-family:'JetBrains Mono',monospace;font-size:13px"></textarea>
+      </div>
+      <div class="form-row" id="specBumpRow" hidden>
+        <label for="specBump">Version bump <small>edit only · current version is shown in the title</small></label>
+        <select id="specBump" name="version_bump">
+          <option value="">no bump</option>
+          <option value="patch">patch</option>
+          <option value="minor">minor</option>
+          <option value="arch">arch (major)</option>
+        </select>
+      </div>
+      <div class="modal-foot">
+        <span class="form-error" id="specFormError"></span>
+        <div class="modal-foot-actions">
+          <button type="button" class="btn-ghost" id="specModalCancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="specSubmit">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.3</span>
+</footer>
+
+<script src="/assets/shell.js?v=20261107-2"></script>
+</body>
+</html>

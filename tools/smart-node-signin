@@ -1,0 +1,24 @@
+#!/bin/bash
+# smart-node-signin -- print a one-time sign-in link for the workspace owner.
+# The way back in when the session has ended and there is no passkey yet: whoever can
+# run this as root on the node owns it. Same record core-api writes at first run
+# (Authum ?action=onetime): only the SHA-256 is stored, the link works once, 5 minutes.
+set -euo pipefail
+[[ $EUID -eq 0 ]] || { echo "run as root" >&2; exit 1; }
+user="${1:-admin}"
+dir=/var/lib/smart-node/authum/auth
+# the sign-in host as the Authum container knows it; the node's hostname otherwise
+auth_url=$(docker inspect smart-node-authum --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+  | sed -n 's/^AUTHUM_AUTH_URL=//p' | head -1 || true)
+domain=$(sed -n 's/^SMART_NODE_DOMAIN=//p' /etc/smart-node/routing.env 2>/dev/null | head -1 || true)
+[[ -n "$domain" ]] || domain=$(hostname -f)
+# a node under .localhost is served on plain http (lib.sh web_local)
+scheme=https; [[ "$domain" == localhost || "$domain" == *.localhost ]] && scheme=http
+[[ -n "$auth_url" ]] || auth_url="$scheme://auth.$domain"
+token=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')
+hash=$(printf '%s' "$token" | sha256sum | cut -d' ' -f1)
+printf '{"sha256": "%s", "user": "%s", "expires": %s}\n' "$hash" "$user" "$(( $(date +%s) + 300 ))" > "$dir/onetime.json.tmp"
+chown 82:smart-node "$dir/onetime.json.tmp"; chmod 0660 "$dir/onetime.json.tmp"
+mv "$dir/onetime.json.tmp" "$dir/onetime.json"
+rd="$scheme://studio.$domain/"   # the Studio
+echo "${auth_url%/}/?action=onetime&t=${token}&rd=$(printf '%s' "$rd" | sed 's/:/%3A/g; s#/#%2F#g')"

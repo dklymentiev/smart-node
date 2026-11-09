@@ -1,0 +1,11 @@
+[Unit]
+Description=Smart Node communication -- mail poller every 30s
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=smart-node-communication-mail-poll.service
+
+[Install]
+WantedBy=timers.target

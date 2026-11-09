@@ -1,0 +1,72 @@
+#!/bin/bash
+# DOCI CLI - Quick capture
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOCI_URL="${DOCI_URL:-https://doci.example.com}"
+API_URL="$DOCI_URL/api/inbox.php"
+
+usage() {
+    echo "Usage: deep <command> [args]"
+    echo ""
+    echo "Commands:"
+    echo "  inbox <text> [-t tags]   Add note to inbox"
+    echo "  list [limit]             List inbox items"
+    echo "  show <guid>              Show item content"
+    echo "  promote <guid> <path>    Move to documents"
+    echo ""
+}
+
+case "$1" in
+    inbox)
+        shift
+        content=""
+        tags=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -t|--tags)
+                    tags="$2"
+                    shift 2
+                    ;;
+                *)
+                    content="$1"
+                    shift
+                    ;;
+            esac
+        done
+        if [ -z "$content" ]; then
+            echo "Error: content required"
+            exit 1
+        fi
+        curl -s -X POST "$API_URL?action=add" \
+            -d "content=$content" \
+            -d "tags=$tags"
+        echo ""
+        ;;
+    list)
+        limit="${2:-20}"
+        curl -s "$API_URL?action=list&limit=$limit" | jq -r '.items[] | "\(.guid | .[0:8])  \(.created_at | split("T")[0])  \(.title[:50])  [\(.tags | join(","))]"' 2>/dev/null || echo "No items or error"
+        ;;
+    show)
+        guid="$2"
+        if [ -z "$guid" ]; then
+            echo "Error: guid required"
+            exit 1
+        fi
+        curl -s "$API_URL?action=get&guid=$guid" | jq -r '.content // .error'
+        ;;
+    promote)
+        guid="$2"
+        target="$3"
+        if [ -z "$guid" ] || [ -z "$target" ]; then
+            echo "Error: guid and target path required"
+            exit 1
+        fi
+        curl -s -X POST "$API_URL?action=promote" \
+            -d "guid=$guid" \
+            -d "target=$target"
+        echo ""
+        ;;
+    *)
+        usage
+        ;;
+esac

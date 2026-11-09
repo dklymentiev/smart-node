@@ -1,0 +1,20 @@
+[Unit]
+Description=Smart Node Runner (centralized agent launcher)
+After=network.target smart-node-core-api.service smart-node-dispatcher.service
+
+[Service]
+User=smart-node-dispatcher
+WorkingDirectory=/opt/smart-node/dispatcher
+EnvironmentFile=/opt/smart-node/dispatcher/.env
+Environment=RUNNER_DRY_RUN=0
+Environment=RUNNER_MAX_CONCURRENCY=6
+Environment=RUNNER_POLL_INTERVAL=5
+Environment=RUNNER_ACTOR=runner
+ExecStart=/opt/smart-node/dispatcher/venv/bin/python /opt/smart-node/dispatcher/runner.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

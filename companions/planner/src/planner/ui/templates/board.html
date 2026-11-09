@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_partials/project_header.html" %}
+
+<div hx-get="/ui/projects/{{ project.slug }}/_board"
+     hx-trigger="load, every 5s [document.visibilityState=='visible']"
+     hx-swap="innerHTML">
+  {% include "_partials/board.html" %}
+</div>
+{% endblock %}

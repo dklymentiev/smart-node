@@ -1,0 +1,56 @@
+# Environment files (contain secrets)
+.env
+.env.*
+!.env.example
+.api-key
+.api-key-hash
+.doci-api-key
+
+# Logs
+*.log
+error_log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PHP
+vendor/
+# Parsedown is vendored on purpose (see THIRD-PARTY-NOTICES.md); without it markdown does not render.
+!lib/vendor/
+composer.lock
+composer.phar
+.phpunit.cache/
+.phpunit.result.cache
+
+# Python (mcp_server.py + any scratch scripts)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Debug
+test-*.php
+debug.php
+
+# Runtime document storage. The hidden dot-directories underneath
+# files/ are operator state (the git working tree under .git/, thread
+# and version snapshots under .data/, etc.) and are never committed.
+# Seed content that ships with the OSS repo is whitelisted explicitly.
+files/*
+!files/.gitkeep
+!files/README.md
+!files/docs/
+!files/farm/
+!files/assets/

@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.bak.*
+*.log
+.DS_Store
+*.swp
+*~
+data/
+
+# local dev scratch backups (keep on node, never canon)
+*.bak-*
+*.bak2-*

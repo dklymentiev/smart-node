@@ -1,0 +1,30 @@
+<section class="mb-6">
+  <a href="/ui/" class="text-xs text-slate-400 hover:text-slate-600">&larr; Dashboard</a>
+  <div class="mt-1 flex items-baseline justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">{{ project.title }}</h1>
+      <p class="text-xs text-slate-400 mt-0.5">
+        <code>{{ project.slug }}</code>
+        {% if project.status != 'active' %} &middot; <span class="uppercase tracking-wider">{{ project.status }}</span>{% endif %}
+        {% if project.description %} &middot; {{ project.description }}{% endif %}
+      </p>
+    </div>
+  </div>
+  <nav class="mt-4 border-b -mx-4 px-4">
+    {% set tabs = [
+      ('overview', 'Overview', '/ui/projects/' ~ project.slug),
+      ('board', 'Board', '/ui/projects/' ~ project.slug ~ '/board'),
+      ('objectives', 'Objectives', '/ui/projects/' ~ project.slug ~ '/objectives'),
+    ] %}
+    <ul class="flex gap-6 text-sm">
+      {% for key, label, href in tabs %}
+        <li>
+          <a href="{{ href }}"
+             class="block py-2 -mb-px border-b-2 {% if active_tab == key %}border-slate-900 text-slate-900 font-medium{% else %}border-transparent text-slate-500 hover:text-slate-900{% endif %}">
+            {{ label }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  </nav>
+</section>

@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block container_class %}w-full{% endblock %}
+{% block content %}
+{% set status_color = {
+  "open":              "bg-slate-100 text-slate-700",
+  "assessing":         "bg-sky-100 text-sky-700",
+  "awaiting_approval": "bg-violet-100 text-violet-700",
+  "in_progress":       "bg-indigo-100 text-indigo-700",
+  "pending_review":    "bg-amber-100 text-amber-700",
+  "done":              "bg-emerald-100 text-emerald-700",
+  "blocked":           "bg-orange-100 text-orange-700",
+  "escalated":         "bg-fuchsia-100 text-fuchsia-700",
+  "rejected":          "bg-slate-200 text-slate-600",
+  "incident":          "bg-rose-100 text-rose-700",
+} %}
+{% set priority_color = {
+  "critical": "bg-rose-100 text-rose-700",
+  "high":     "bg-amber-100 text-amber-700",
+  "medium":   "bg-slate-100 text-slate-700",
+  "low":      "bg-slate-50 text-slate-500",
+} %}
+{% macro ts(v) %}{% if v %}{{ v.strftime('%m-%d %H:%M') }}{% else %}<span class="text-slate-300">—</span>{% endif %}{% endmacro %}
+{% macro txt(v) %}{% if v %}{{ v }}{% else %}<span class="text-slate-300">—</span>{% endif %}{% endmacro %}
+
+<section class="mb-4 flex items-baseline justify-between">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight">Tasks</h1>
+    <p class="text-sm text-slate-500 mt-1">{{ tasks|length }} shown &middot; all fields, single row per task</p>
+  </div>
+  <a href="/ui/tasks/new"
+     class="px-3 py-1.5 text-sm bg-slate-900 text-white rounded hover:bg-slate-700">
+    + New task
+  </a>
+</section>
+
+<form method="get" action="/ui/tasks"
+      class="mb-4 flex flex-wrap items-end gap-3 bg-white border rounded-lg p-3 text-xs">
+  <label>
+    <span class="block text-slate-500 mb-1">Project</span>
+    <select name="project_id" class="border rounded px-2 py-1">
+      <option value="">All</option>
+      {% for p in projects %}
+      <option value="{{ p.id }}" {% if filters.project_id == p.id %}selected{% endif %}>{{ p.title }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    <span class="block text-slate-500 mb-1">Status</span>
+    <select name="status" class="border rounded px-2 py-1">
+      <option value="">All</option>
+      {% for s in all_statuses %}
+      <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    <span class="block text-slate-500 mb-1">Priority</span>
+    <select name="priority" class="border rounded px-2 py-1">
+      <option value="">All</option>
+      {% for p in all_priorities %}
+      <option value="{{ p }}" {% if filters.priority == p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    <span class="block text-slate-500 mb-1">Assignee</span>
+    <input type="text" name="assignee" value="{{ filters.assignee or '' }}"
+           placeholder="actor id" class="border rounded px-2 py-1 w-36">
+  </label>
+  <div class="flex items-center gap-2">
+    <button class="px-3 py-1.5 bg-slate-900 text-white rounded hover:bg-slate-700">Filter</button>
+    <a href="/ui/tasks" class="text-slate-500 hover:text-slate-900">Reset</a>
+  </div>
+</form>
+
+{% if tasks %}
+<div class="bg-white border rounded-lg overflow-x-auto">
+  <table class="text-[11px] leading-tight w-full">
+    <thead class="bg-slate-50 text-left uppercase tracking-wider text-slate-500">
+      <tr class="whitespace-nowrap">
+        <th class="px-2 py-1.5">#</th>
+        <th class="px-2 py-1.5">Title</th>
+        <th class="px-2 py-1.5">Project</th>
+        <th class="px-2 py-1.5">Obj</th>
+        <th class="px-2 py-1.5">Status</th>
+        <th class="px-2 py-1.5">Pri</th>
+        <th class="px-2 py-1.5">Assignee</th>
+        <th class="px-2 py-1.5">Requester</th>
+        <th class="px-2 py-1.5">Complex</th>
+        <th class="px-2 py-1.5">ETA</th>
+        <th class="px-2 py-1.5">Scope</th>
+        <th class="px-2 py-1.5">Due</th>
+        <th class="px-2 py-1.5">Blk-by</th>
+        <th class="px-2 py-1.5">Blk-reason</th>
+        <th class="px-2 py-1.5">Prev</th>
+        <th class="px-2 py-1.5">External</th>
+        <th class="px-2 py-1.5">V#</th>
+        <th class="px-2 py-1.5">Tags</th>
+        <th class="px-2 py-1.5">Created</th>
+        <th class="px-2 py-1.5">Updated</th>
+        <th class="px-2 py-1.5">Assessed</th>
+        <th class="px-2 py-1.5">Approved</th>
+        <th class="px-2 py-1.5">Started</th>
+        <th class="px-2 py-1.5">Completed</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y">
+      {% for t in tasks %}
+      <tr class="hover:bg-slate-50 whitespace-nowrap align-middle">
+        <td class="px-2 py-1 text-slate-400 font-mono">{{ t.id }}</td>
+        <td class="px-2 py-1 max-w-[20rem] truncate">
+          <a href="/ui/tasks/{{ t.id }}" title="{{ t.title }}" class="font-medium text-slate-900 hover:underline">{{ t.title }}</a>
+        </td>
+        <td class="px-2 py-1 text-slate-600">
+          {% set proj = projects_by_id.get(t.project_id) %}
+          {% if proj %}<a href="/ui/projects/{{ proj.slug }}/board" class="hover:underline">{{ proj.slug }}</a>
+          {% else %}<span class="text-slate-300">—</span>{% endif %}
+        </td>
+        <td class="px-2 py-1 text-slate-500">{{ txt(t.objective_id) }}</td>
+        <td class="px-2 py-1">
+          <span class="px-1.5 py-0.5 rounded {{ status_color.get(t.status, 'bg-slate-100 text-slate-700') }}">{{ t.status }}</span>
+        </td>
+        <td class="px-2 py-1">
+          <span class="px-1.5 py-0.5 rounded {{ priority_color.get(t.priority, 'bg-slate-100 text-slate-700') }}">{{ t.priority }}</span>
+        </td>
+        <td class="px-2 py-1 text-slate-600">{% if t.assignee %}@{{ t.assignee }}{% else %}<span class="text-slate-300">—</span>{% endif %}</td>
+        <td class="px-2 py-1 text-slate-600">{% if t.requester %}@{{ t.requester }}{% else %}<span class="text-slate-300">—</span>{% endif %}</td>
+        <td class="px-2 py-1 text-slate-500">{{ txt(t.complexity_hint) }}</td>
+        <td class="px-2 py-1 text-slate-500">{{ txt(t.eta) }}</td>
+        <td class="px-2 py-1 text-slate-500 max-w-[16rem] truncate" title="{{ t.scope or '' }}">{{ txt(t.scope) }}</td>
+        <td class="px-2 py-1 text-slate-500">{{ txt(t.due_date) }}</td>
+        <td class="px-2 py-1 text-slate-500 font-mono">{% if t.blocked_by %}<a href="/ui/tasks/{{ t.blocked_by }}" class="hover:underline">#{{ t.blocked_by }}</a>{% else %}<span class="text-slate-300">—</span>{% endif %}</td>
+        <td class="px-2 py-1 text-slate-500">{{ txt(t.blocked_reason) }}</td>
+        <td class="px-2 py-1 text-slate-500">{{ txt(t.previous_status) }}</td>
+        <td class="px-2 py-1 text-slate-500 max-w-[16rem] truncate" title="{{ t.external_detail or '' }}">{{ txt(t.external_detail) }}</td>
+        <td class="px-2 py-1 text-slate-500 text-center">{{ t.verification_attempts }}</td>
+        <td class="px-2 py-1">
+          {% set tag_list = tags_by_task.get(t.id) or [] %}
+          {% if tag_list %}
+          {% for tag in tag_list %}<span class="inline-block mr-0.5 px-1 py-0.5 rounded bg-slate-50 border border-slate-200 text-slate-500">{{ tag }}</span>{% endfor %}
+          {% else %}<span class="text-slate-300">—</span>{% endif %}
+        </td>
+        <td class="px-2 py-1 text-slate-500">{{ ts(t.created_at) }}</td>
+        <td class="px-2 py-1 text-slate-500">{{ ts(t.updated_at) }}</td>
+        <td class="px-2 py-1 text-slate-500">{{ ts(t.assessed_at) }}</td>
+        <td class="px-2 py-1 text-slate-500">{{ ts(t.approved_at) }}</td>
+        <td class="px-2 py-1 text-slate-500">{{ ts(t.execution_started_at) }}</td>
+        <td class="px-2 py-1 text-slate-500">{{ ts(t.completed_at) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white border rounded-lg p-8 text-center text-sm text-slate-500">
+  No tasks match these filters.
+</div>
+{% endif %}
+{% endblock %}

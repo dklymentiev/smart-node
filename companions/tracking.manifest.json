@@ -1,0 +1,11 @@
+{
+  "name": "tracking",
+  "title": "Tasks",
+  "provides": "the task planner",
+  "requires": [],
+  "works_without": {
+    "documents": "nothing: Tasks runs without Documents; with both, Documents goes first"
+  },
+  "sidecars": "planner tracking _shared",
+  "icon": "list-checks"
+}

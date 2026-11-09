@@ -1,0 +1,16 @@
+{
+  "name": "dispatcher",
+  "title": "Message dispatch",
+  "provides": "wakes the agent when a message arrives",
+  "core": true,
+  "requires": [
+    "gateway"
+  ],
+  "works_without": {
+    "memory": "agents answer, but keep no long-term memory",
+    "tracking": "agents answer chats; flows, approvals and task waits are off",
+    "agent-runtimes": "no Claude Code: agents run on Flint"
+  },
+  "sidecars": "brin _shared",
+  "icon": "send"
+}

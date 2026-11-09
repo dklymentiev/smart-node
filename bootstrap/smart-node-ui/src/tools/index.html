@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · Tools</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="tools" data-group="ai">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M4 7h16M4 12h16M4 17h16"/>
+      </svg>
+    </button>
+    <a class="mark-lockup" href="/">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="10" height="10" fill="currentColor"/>
+        <rect x="9" y="9" width="10" height="10" fill="currentColor"/>
+      </svg>
+      <span class="mark-text">Smart Node</span>
+    </a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item active" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/ai/" class="subnav-item">AI Gateway</a>
+  <a href="/integrations/" class="subnav-item">Integrations</a>
+  <a href="/tools/" class="subnav-item active">Tools</a>
+  <a href="/mcp/" class="subnav-item">MCP</a>
+  <a href="/runtimes/" class="subnav-item">Runtimes</a>
+  <a href="/agents/" class="subnav-item">Agents</a>
+  <a href="/specialists/" class="subnav-item">Specialists</a>
+  <a href="/policies/" class="subnav-item">Policies</a>
+  <a href="/limits/" class="subnav-item">Limits</a>
+  <a href="/secrets/" class="subnav-item">Secrets</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ 07 · tools</div>
+    <h1>Tools</h1>
+    <p class="lead">Capabilities available to agents · primitives, CLIs, MCP servers, HTTP APIs. Registry is the source of truth: agents reference tools by <code>name</code>. Pre-seeded on boot from <code>/srv/tools/</code> and <code>**/.mcp.json</code>; you can add custom entries here.</p>
+  </div>
+
+  <section class="stat-grid stat-grid-4">
+    <article class="stat-card" data-stat="tools-total">
+      <div class="stat-label">Tools</div>
+      <div class="stat-value" data-field="tools-total">-</div>
+      <div class="stat-foot">registered</div>
+    </article>
+    <article class="stat-card" data-stat="tools-available">
+      <div class="stat-label">Available</div>
+      <div class="stat-value" data-field="tools-available">-</div>
+      <div class="stat-foot">ready to use</div>
+    </article>
+    <article class="stat-card" data-stat="tools-broken">
+      <div class="stat-label">Broken</div>
+      <div class="stat-value" data-field="tools-broken">-</div>
+      <div class="stat-foot">needs attention</div>
+    </article>
+    <article class="stat-card" data-stat="tools-stub">
+      <div class="stat-label">Stub</div>
+      <div class="stat-value" data-field="tools-stub">-</div>
+      <div class="stat-foot">placeholder only</div>
+    </article>
+  </section>
+
+  <section class="tools-toolbar">
+    <div class="section-label">registered tools</div>
+    <div class="tools-toolbar-actions">
+      <label class="filter-inline">
+        <span>Kind</span>
+        <select id="filterToolKind">
+          <option value="">all</option>
+          <option value="cli">cli</option>
+          <option value="mcp">mcp</option>
+          <option value="api">api</option>
+          <option value="builtin">builtin</option>
+        </select>
+      </label>
+      <button class="btn-primary" id="toolNewBtn">+ New tool</button>
+    </div>
+  </section>
+
+  <section class="tools-table-wrap">
+    <div class="table-wrap">
+      <table class="events-table tools-table" id="toolsTable">
+        <thead>
+          <tr>
+            <th class="col-name">Name</th>
+            <th class="col-kind">Kind</th>
+            <th class="col-title">Title</th>
+            <th class="col-status">Status</th>
+            <th class="col-tags">Tags</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="toolsBody">
+          <tr class="empty-row"><td colspan="6"><span class="sn-spinner" aria-hidden="true"></span>Loading</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="page-meta">
+    <span class="meta-dot" id="liveDot"></span>
+    <span class="meta-text">Last fetch <span id="lastRefresh">-</span></span>
+  </div>
+</main>
+
+<!-- Tool modal (create + edit) -->
+<div class="modal-scrim" id="toolModalScrim" hidden>
+  <div class="modal-panel" role="dialog" aria-labelledby="toolModalTitle">
+    <header class="modal-head">
+      <h2 id="toolModalTitle">New tool</h2>
+      <button type="button" class="modal-close" id="toolModalClose" aria-label="Close">×</button>
+    </header>
+    <form id="toolForm" class="modal-form" autocomplete="off">
+      <input type="hidden" name="original_name" value="">
+      <div class="form-row">
+        <label for="toolName">Name <small>required · lowercase, digits, dashes</small></label>
+        <input type="text" id="toolName" name="name" pattern="[a-z][a-z0-9\-]{1,40}" minlength="2" maxlength="41" required>
+      </div>
+      <div class="form-row form-row-split">
+        <div>
+          <label for="toolKind">Kind <small>required</small></label>
+          <select id="toolKind" name="kind" required>
+            <option value="cli">cli</option>
+            <option value="mcp">mcp</option>
+            <option value="api">api</option>
+            <option value="builtin">builtin</option>
+          </select>
+        </div>
+        <div>
+          <label for="toolStatus">Status</label>
+          <select id="toolStatus" name="status">
+            <option value="available">available</option>
+            <option value="broken">broken</option>
+            <option value="stub">stub</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="toolTitle">Title <small>required · human-readable</small></label>
+        <input type="text" id="toolTitle" name="title" maxlength="120" required>
+      </div>
+      <div class="form-row">
+        <label for="toolDesc">Description</label>
+        <textarea id="toolDesc" name="description" rows="3"></textarea>
+      </div>
+      <div class="form-row">
+        <label for="toolInstallUri">Install URI <small>script path / package / endpoint</small></label>
+        <input type="text" id="toolInstallUri" name="install_uri">
+      </div>
+      <div class="form-row">
+        <label for="toolTags">Tags <small>comma-separated</small></label>
+        <input type="text" id="toolTags" name="tags" placeholder="primitive, llm, …">
+      </div>
+      <div class="modal-foot">
+        <span class="form-error" id="toolFormError"></span>
+        <div class="modal-foot-actions">
+          <button type="button" class="btn-ghost" id="toolModalCancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="toolSubmit">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.3</span>
+</footer>
+
+<script src="/assets/shell.js"></script>
+</body>
+</html>

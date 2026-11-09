@@ -1,0 +1,20 @@
+# Traefik reverse proxy integration
+# Usage: docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+services:
+  api:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mesh.rule=Host(`${TRAEFIK_HOST:-localhost}`)"
+      - "traefik.http.routers.mesh.entrypoints=https"
+      - "traefik.http.routers.mesh.middlewares=mesh-vpn@file"
+      - "traefik.http.routers.mesh.tls=true"
+      - "traefik.http.routers.mesh.tls.certresolver=letsEncrypt"
+      - "traefik.http.services.mesh.loadbalancer.server.port=8000"
+      - "traefik.docker.network=traefik-net"
+    networks:
+      - default
+      - traefik-net
+
+networks:
+  traefik-net:
+    external: true

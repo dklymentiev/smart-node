@@ -1,0 +1,22 @@
+{% if tasks %}
+<div class="bg-white border rounded-lg divide-y h-full">
+  {% for t in tasks %}
+  <a href="/ui/tasks/{{ t.id }}" class="block px-4 py-2.5 hover:bg-slate-50 transition">
+    <div class="flex items-baseline gap-2">
+      <span class="px-1.5 py-0.5 rounded text-[11px] shrink-0 bg-amber-100 text-amber-700">review</span>
+      <span class="font-mono text-xs text-slate-400 shrink-0">#{{ t.id }}</span>
+      <span class="font-medium text-sm text-slate-900 truncate">{{ t.title }}</span>
+    </div>
+    <p class="text-xs text-slate-500 mt-0.5 ml-0.5">
+      {% if t.project_slug %}{{ t.project_slug }} &middot; {% endif %}
+      {% if t.assignee %}@{{ t.assignee }} &middot; {% endif %}
+      waiting {{ t.updated_at | age }}
+    </p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white border rounded-lg p-8 h-full flex items-center justify-center text-center text-sm text-slate-500">
+  <span>Nothing awaiting review.</span>
+</div>
+{% endif %}

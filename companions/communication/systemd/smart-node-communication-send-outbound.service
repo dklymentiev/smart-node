@@ -1,0 +1,19 @@
+[Unit]
+Description=Smart Node communication -- outbound sender (the node's single exit)
+After=network-online.target postgresql@16-smartnode.service smart-node-mail.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=smart-node-communication
+Group=smart-node
+WorkingDirectory=/opt/smart-node/communication
+EnvironmentFile=/opt/smart-node/communication/.env
+ExecStart=/opt/smart-node/communication/venv/bin/python send_outbound.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=true
+ProtectHome=true
+ReadWritePaths=/opt/smart-node/communication /var/log/smart-node/communication
+StandardOutput=append:/var/log/smart-node/communication/send-outbound.log
+StandardError=append:/var/log/smart-node/communication/send-outbound.log

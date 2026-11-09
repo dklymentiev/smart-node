@@ -1,0 +1,62 @@
+{% set status_color = {
+  "open":              "bg-slate-100 text-slate-700",
+  "assessing":         "bg-sky-100 text-sky-700",
+  "awaiting_approval": "bg-violet-100 text-violet-700",
+  "in_progress":       "bg-indigo-100 text-indigo-700",
+  "pending_review":    "bg-amber-100 text-amber-700",
+  "done":              "bg-emerald-100 text-emerald-700",
+  "blocked":           "bg-orange-100 text-orange-700",
+  "escalated":         "bg-fuchsia-100 text-fuchsia-700",
+  "rejected":          "bg-slate-200 text-slate-600",
+  "incident":          "bg-rose-100 text-rose-700",
+} %}
+{% set priority_color = {
+  "critical": "bg-rose-100 text-rose-700",
+  "high":     "bg-amber-100 text-amber-700",
+  "medium":   "bg-slate-100 text-slate-700",
+  "low":      "bg-slate-50 text-slate-500",
+} %}
+{% if tasks %}
+<div class="bg-white border rounded-lg overflow-x-auto">
+  <table class="text-xs leading-tight w-full">
+    <thead class="bg-slate-50 text-left uppercase tracking-wider text-slate-500">
+      <tr class="whitespace-nowrap">
+        <th class="px-3 py-2">#</th>
+        <th class="px-3 py-2">Title</th>
+        <th class="px-3 py-2">Project</th>
+        <th class="px-3 py-2">Status</th>
+        <th class="px-3 py-2">Pri</th>
+        <th class="px-3 py-2">Assignee</th>
+        <th class="px-3 py-2">Updated</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y">
+      {% for t in tasks %}
+      <tr class="hover:bg-slate-50 whitespace-nowrap align-middle">
+        <td class="px-3 py-1.5 text-slate-400 font-mono">{{ t.id }}</td>
+        <td class="px-3 py-1.5 max-w-[24rem] truncate">
+          <a href="/ui/tasks/{{ t.id }}" title="{{ t.title }}"
+             class="font-medium text-slate-900 hover:underline">{{ t.title }}</a>
+        </td>
+        <td class="px-3 py-1.5 text-slate-600">
+          {% if t.project_slug %}<a href="/ui/projects/{{ t.project_slug }}/board" class="hover:underline">{{ t.project_slug }}</a>
+          {% else %}<span class="text-slate-300">&mdash;</span>{% endif %}
+        </td>
+        <td class="px-3 py-1.5">
+          <span class="px-1.5 py-0.5 rounded {{ status_color.get(t.status, 'bg-slate-100 text-slate-700') }}">{{ t.status }}</span>
+        </td>
+        <td class="px-3 py-1.5">
+          <span class="px-1.5 py-0.5 rounded {{ priority_color.get(t.priority, 'bg-slate-100 text-slate-700') }}">{{ t.priority }}</span>
+        </td>
+        <td class="px-3 py-1.5 text-slate-600">{% if t.assignee %}@{{ t.assignee }}{% else %}<span class="text-slate-300">&mdash;</span>{% endif %}</td>
+        <td class="px-3 py-1.5 text-slate-500">{% if t.updated_at %}{{ t.updated_at.strftime('%m-%d %H:%M') }}{% else %}<span class="text-slate-300">&mdash;</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-white border rounded-lg p-8 text-center text-sm text-slate-500">
+  No tasks yet.
+</div>
+{% endif %}

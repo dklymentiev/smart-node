@@ -1,0 +1,57 @@
+/* =====================================================================
+   Smart Node — Base  v0.1
+   Reset, typography, body surface, scrollbars, a11y. Requires tokens.css.
+   ===================================================================== */
+
+@layer base {
+
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+
+  /* `hidden` hides, whatever display a component gives the element: important
+     in the first layer wins over every later layer's display */
+  [hidden] { display:none !important; }
+
+  html { scroll-behavior:smooth; }
+
+  body{
+    background:var(--sn-bg);
+    color:var(--sn-ink-2);
+    font-family:var(--sn-font);
+    font-size:16px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    min-height:100dvh; /* the visible viewport on phones,  */
+  }
+
+  /* dark surface gets a faint localized glow — atmosphere, never a fill */
+  [data-theme="dark"] body{
+    background:
+      radial-gradient(900px 600px at 80% -8%, var(--sn-glow-cool), transparent 60%),
+      radial-gradient(760px 560px at 6% 110%, var(--sn-glow-warm), transparent 60%),
+      var(--sn-bg);
+  }
+
+  a{ color:inherit; text-decoration:none; }
+  img, svg, video{ display:block; max-width:100%; }
+  button, input, textarea, select{ font:inherit; color:inherit; }
+
+  ::selection{ background:color-mix(in srgb, var(--sn-ink-mute) 24%, transparent); }
+
+  /* scrollbars */
+  *::-webkit-scrollbar{ width:9px; height:9px; }
+  *::-webkit-scrollbar-thumb{ background:var(--sn-rule); border-radius:var(--sn-r-sm); }
+  *::-webkit-scrollbar-thumb:hover{ background:var(--sn-ink-faint); }
+  *{ scrollbar-width:thin; scrollbar-color:var(--sn-rule) transparent; }
+
+  /* focus — keyboard only */
+  :focus-visible{ outline:2px solid var(--sn-ink-mute); outline-offset:2px; border-radius:var(--sn-r-xs); }
+
+  /* monospace helper */
+  .sn-mono{ font-family:var(--sn-mono); }
+
+  /* respect reduced motion globally */
+  @media (prefers-reduced-motion:reduce){
+    *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; scroll-behavior:auto !important; }
+  }
+}

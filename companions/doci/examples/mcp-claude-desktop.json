@@ -1,0 +1,15 @@
+{
+  "//": "Drop the `doci` block into the `mcpServers` map of your Claude Desktop or Claude Code mcp.json. Adjust `command`/`cwd`/env for your machine. The MCP server (mcp_server.py) is a thin client over the REST API — DOCI_API_URL + DOCI_API_KEY drive everything. See docs/05-api-reference.md for the full tool list.",
+  "mcpServers": {
+    "doci": {
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "cwd": "/absolute/path/to/doci",
+      "env": {
+        "DOCI_API_URL": "http://localhost:8080/api",
+        "DOCI_API_KEY": "set-me-from-env-or-1password",
+        "DOCI_MCP_TIMEOUT": "30"
+      }
+    }
+  }
+}

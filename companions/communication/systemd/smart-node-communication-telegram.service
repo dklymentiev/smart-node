@@ -1,0 +1,24 @@
+[Unit]
+Description=Smart Node communication -- telegram adapter (ingest daemon)
+After=network-online.target postgresql@16-smartnode.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=smart-node-communication
+Group=smart-node
+WorkingDirectory=/opt/smart-node/communication
+EnvironmentFile=/opt/smart-node/communication/.env
+ExecStart=/opt/smart-node/communication/.venv/bin/python -m adapters.telegram.adapter
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=true
+ProtectHome=true
+ReadWritePaths=/opt/smart-node/communication /var/log/smart-node/communication
+StandardOutput=append:/var/log/smart-node/communication/adapters.telegram.adapter.log
+StandardError=append:/var/log/smart-node/communication/adapters.telegram.adapter.log
+
+[Install]
+WantedBy=multi-user.target

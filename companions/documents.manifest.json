@@ -1,0 +1,11 @@
+{
+  "name": "documents",
+  "title": "Documents",
+  "provides": "documents for people and agents",
+  "requires": [
+    "core-api"
+  ],
+  "works_without": {},
+  "sidecars": "doci docs/node:doci-seed _shared",
+  "icon": "file-text"
+}

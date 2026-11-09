@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gdrive-mcp"
+version = "0.1.1"
+description = "Google Drive MCP server for Smart Node"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Proprietary"}
+dependencies = [
+    # Pinned below 2.0 deliberately. mcp 2.x renamed FastMCP to MCPServer.
+    # An unpinned >=1.0.0 resolves to 2.x and the server dies at import.
+    "mcp>=1.0.0,<2",
+    "httpx>=0.27.0,<1",
+    "google-auth>=2.20.0",
+    "google-api-python-client>=2.90.0",
+    "google-auth-httplib2>=0.2.0",
+    "httplib2>=0.22.0",
+]
+
+[project.scripts]
+gdrive-mcp = "gdrive_mcp.mcp_server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gdrive_mcp*"]

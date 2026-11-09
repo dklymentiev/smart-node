@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Node · References</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0a0a0c">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Admin">
+<script src="/assets/pwa.js" defer></script>
+<link rel="icon" type="image/svg+xml" href="/assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/base.css">
+<link rel="stylesheet" href="/ui/components.css">
+<link rel="stylesheet" href="/assets/shell.css">
+<script>try{document.documentElement.setAttribute('data-theme',(document.cookie.match(/(?:^|; )sn-theme=(light|dark)/)||[])[1]||localStorage.getItem('sn-theme')||'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}</script>
+<script src="/assets/ready.js"></script>
+</head>
+<body data-page="references" data-group="ai">
+
+<div class="menu-scrim" id="menuScrim"></div>
+
+<header class="topbar">
+  <div class="topbar-brand">
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="mark-lockup" href="/"><svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true"><rect x="1" y="1" width="10" height="10" fill="currentColor"/><rect x="9" y="9" width="10" height="10" fill="currentColor"/></svg><span class="mark-text">Smart Node</span></a>
+    <span class="topbar-meta">Smart Node · self-hosted</span>
+  </div>
+
+  <nav class="topbar-nav" id="topbarNav">
+    <a href="/" class="nav-item" data-group="server">Server</a>
+    <a href="/ai/" class="nav-item active" data-group="ai">AI</a>
+    <a href="/database/" class="nav-item" data-group="database">Database</a>
+    <a href="/memory/" class="nav-item" data-group="memory">Memory</a>
+    <a href="/planner/" class="nav-item" data-group="planner">Planner</a>
+    <a href="/workflows/" class="nav-item" data-group="workflows">Workflows</a>
+    <a href="/settings/" class="nav-item" data-group="settings">Settings</a>
+  </nav>
+
+  <div class="topbar-right">
+    <div class="user-menu" id="userMenu">
+      <span class="user-name">admin</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9l6 6 6-6"/></svg>
+      <div class="user-dropdown">
+        <div class="dropdown-header">admin <small>super-admin</small></div>
+        <a href="/logout" class="dropdown-item">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="subtopbar">
+  <a href="/ai/" class="subnav-item">AI Gateway</a>
+  <a href="/integrations/" class="subnav-item">Integrations</a>
+  <a href="/tools/" class="subnav-item">Tools</a>
+  <a href="/mcp/" class="subnav-item">MCP</a>
+  <a href="/runtimes/" class="subnav-item">Runtimes</a>
+  <a href="/agents/" class="subnav-item">Agents</a>
+  <a href="/specialists/" class="subnav-item">Specialists</a>
+  <a href="/policies/" class="subnav-item">Policies</a>
+  <a href="/limits/" class="subnav-item">Limits</a>
+  <a href="/secrets/" class="subnav-item">Secrets</a>
+</nav>
+
+<main class="content content-wide">
+  <div class="page-head">
+    <div class="eyebrow">/ 10 · references</div>
+    <h1>References</h1>
+    <p class="lead">Semantic-name registry for external documents. An agent declares <code>references: [brand-voice, infrastructure-catalog]</code> in its manifest · the resolver looks each key up here and injects the live document into the prompt. Decouples agents from GUID-s: when the doc moves, you change one row here, not N prompts.</p>
+  </div>
+
+  <section class="stat-grid stat-grid-4">
+    <article class="stat-card"><div class="stat-label">Total</div><div class="stat-value" data-field="ref-total">-</div><div class="stat-foot">registered</div></article>
+    <article class="stat-card"><div class="stat-label">Required</div><div class="stat-value" data-field="ref-required">-</div><div class="stat-foot">must-read</div></article>
+    <article class="stat-card"><div class="stat-label">Doci</div><div class="stat-value" data-field="ref-doci">-</div><div class="stat-foot">target_kind</div></article>
+    <article class="stat-card"><div class="stat-label">Other</div><div class="stat-value" data-field="ref-other">-</div><div class="stat-foot">papers / mesh / url</div></article>
+  </section>
+
+  <section class="tools-toolbar">
+    <div class="section-label">registered references</div>
+    <div class="tools-toolbar-actions">
+      <label class="filter-inline">
+        <span>Kind</span>
+        <select id="filterRefKind">
+          <option value="">all</option>
+          <option value="doci">doci</option>
+          <option value="papers">papers</option>
+          <option value="mesh">mesh</option>
+          <option value="url">url</option>
+        </select>
+      </label>
+      <button class="btn-row" id="refResetBtn" title="Reload from server">Refresh</button>
+      <button class="btn-primary" id="refNewBtn">+ New reference</button>
+    </div>
+  </section>
+
+  <section class="tools-table-wrap">
+    <div class="table-wrap">
+      <table class="events-table tools-table" id="refTable">
+        <thead>
+          <tr>
+            <th class="col-name">Key</th>
+            <th class="col-kind">Kind</th>
+            <th class="col-title">Title</th>
+            <th class="col-tags">Target</th>
+            <th class="col-status">Required</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="refBody">
+          <tr class="empty-row"><td colspan="6"><span class="sn-spinner" aria-hidden="true"></span>Loading</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="page-meta">
+    <span class="meta-dot live" id="liveDot"></span>
+    <span class="meta-text">Live from the database · tenant-scoped</span>
+  </div>
+</main>
+
+<!-- Reference modal (create + edit) -->
+<div class="modal-scrim" id="refModalScrim" hidden>
+  <div class="modal-panel" role="dialog" aria-labelledby="refModalTitle">
+    <header class="modal-head">
+      <h2 id="refModalTitle">New reference</h2>
+      <button type="button" class="modal-close" id="refModalClose" aria-label="Close">×</button>
+    </header>
+    <form id="refForm" class="modal-form" autocomplete="off">
+      <input type="hidden" name="original_key" value="">
+      <div class="form-row">
+        <label for="refKey">Key <small>required · lowercase, dashes · this is what agents reference</small></label>
+        <input type="text" id="refKey" name="key" pattern="[a-z][a-z0-9\-]{1,60}" minlength="2" maxlength="61" required>
+      </div>
+      <div class="form-row">
+        <label for="refTitle">Title <small>required · what is this document</small></label>
+        <input type="text" id="refTitle" name="title" maxlength="160" required>
+      </div>
+      <div class="form-row form-row-split">
+        <div>
+          <label for="refKind">Target kind</label>
+          <select id="refKind" name="target_kind" required>
+            <option value="doci">doci</option>
+            <option value="papers">papers</option>
+            <option value="mesh">mesh</option>
+            <option value="url">url</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-check" style="margin-top:24px"><input type="checkbox" id="refRequired" name="required"> Required (must-read)</label>
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="refTarget">Target ID <small>GUID for doci/papers/mesh, full URL for url</small></label>
+        <input type="text" id="refTarget" name="target_id" required>
+      </div>
+      <div class="modal-foot">
+        <span class="form-error" id="refFormError"></span>
+        <div class="modal-foot-actions">
+          <button type="button" class="btn-ghost" id="refModalCancel">Cancel</button>
+          <button type="submit" class="btn-primary" id="refSubmit">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <span class="footer-meta">Smart Node panel · v0.0.3</span>
+</footer>
+
+<script src="/assets/shell.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+{% if items %}
+<div class="bg-white border rounded-lg p-4 h-full">
+  <ul class="grid grid-cols-1 xl:grid-cols-2 gap-x-6 gap-y-4">
+    {% for o in items %}
+    <li class="flex items-center gap-3">
+      <svg width="60" height="60" viewBox="0 0 64 64" class="shrink-0">
+        <circle cx="32" cy="32" r="26" fill="none" stroke="#e2e8f0" stroke-width="7"/>
+        <circle cx="32" cy="32" r="26" fill="none"
+                stroke="{% if o.pct >= 100 %}#059669{% else %}#0f172a{% endif %}"
+                stroke-width="7" stroke-linecap="round"
+                transform="rotate(-90 32 32)"
+                stroke-dasharray="{{ '%.2f'|format(ring_circ * o.pct / 100) }} {{ ring_circ }}"/>
+        <text x="32" y="32" text-anchor="middle" dominant-baseline="central"
+              font-size="14" font-weight="600" fill="#0f172a">{{ o.pct }}%</text>
+      </svg>
+      <div class="min-w-0">
+        {% if o.project_slug %}
+        <a href="/ui/projects/{{ o.project_slug }}/objectives"
+           class="font-medium text-slate-900 hover:underline block truncate"
+           title="{{ o.title }}">{{ o.title }}</a>
+        {% else %}
+        <span class="font-medium text-slate-900 block truncate" title="{{ o.title }}">{{ o.title }}</span>
+        {% endif %}
+        <p class="text-xs text-slate-500">
+          {% if o.project_slug %}{{ o.project_slug }} &middot; {% endif %}{{ o.done }}/{{ o.total }} tasks done
+        </p>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% else %}
+<div class="bg-white border rounded-lg p-8 h-full flex items-center justify-center text-center text-sm text-slate-500">
+  <span>No {{ kind }}s yet. Create an objective of type
+  <code class="px-1 py-0.5 bg-slate-100 rounded">{{ kind }}</code> to track here.</span>
+</div>
+{% endif %}

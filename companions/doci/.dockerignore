@@ -1,0 +1,65 @@
+# Environment and secrets (including the example template -- the
+# image should not ship a template for operators to misread as a
+# functioning .env)
+.env
+.env.*
+.env.example
+.api-key
+.api-key-hash
+.doci-api-key
+
+# Git
+.git
+.gitignore
+
+# Repository metadata, not application content. The VENDORED marker also names
+# the upstream, and an image is the one artifact that leaves this machine, so
+# tools/scan-images.sh refuses a build that carries it.
+VENDORED
+
+# Development
+docker-compose*.yml
+Dockerfile
+.dockerignore
+tests/
+DATABASE.md
+README.md
+MEMORY.md
+CLAUDE.md
+CHANGELOG.md
+
+# Logs
+*.log
+error_log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PHP dev
+vendor/
+composer.lock
+composer.phar
+.phpunit.*
+
+# Python dev artifacts (mcp_server.py only; no Python in image)
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Debug
+test-*.php
+debug.php
+
+# Production data (mounted as volume)
+files/

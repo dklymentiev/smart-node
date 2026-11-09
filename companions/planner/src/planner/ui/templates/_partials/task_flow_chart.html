@@ -1,0 +1,75 @@
+<div data-flow-chart class="bg-white border rounded-lg p-4 h-full">
+  <div class="flex items-baseline justify-between gap-2 mb-3">
+    <div>
+      <h2 class="font-semibold tracking-tight">Tasks opened vs closed</h2>
+      <p class="text-xs text-slate-500 mt-0.5">
+        Last {{ days }} days
+        {% if not chart.empty %}
+        &middot; <span class="text-slate-700 font-medium">{{ chart.total_opened }}</span> opened
+        &middot; <span class="text-slate-700 font-medium">{{ chart.total_closed }}</span> closed
+        {% endif %}
+      </p>
+    </div>
+    <div class="flex gap-1 text-xs">
+      {% for r in ranges %}
+      <button
+        hx-get="/ui/_partials/task_flow_chart?range={{ r }}"
+        hx-target="closest [data-flow-chart]"
+        hx-swap="outerHTML"
+        class="px-2 py-1 rounded border
+               {% if r == days %}bg-slate-900 text-white border-slate-900
+               {% else %}bg-white text-slate-700 border-slate-200 hover:bg-slate-50{% endif %}">
+        {{ r }}d
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if chart.empty %}
+  <p class="text-sm text-slate-400 italic py-12 text-center">No tasks in this window.</p>
+  {% else %}
+  <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}"
+       preserveAspectRatio="xMidYMid meet"
+       class="w-full h-auto">
+    {% for t in chart.y_ticks %}
+    <line x1="{{ chart.pad_left }}" y1="{{ t.y }}"
+          x2="{{ chart.pad_left + chart.inner_w }}" y2="{{ t.y }}"
+          stroke="#e2e8f0" stroke-width="1"/>
+    <text x="{{ chart.pad_left - 6 }}" y="{{ t.y + 3 }}"
+          text-anchor="end" font-size="10" fill="#94a3b8">{{ t.value }}</text>
+    {% endfor %}
+
+    {% for t in chart.x_ticks %}
+    <text x="{{ t.x }}" y="{{ chart.pad_top + chart.inner_h + 16 }}"
+          text-anchor="middle" font-size="10" fill="#94a3b8">{{ t.label }}</text>
+    {% endfor %}
+
+    <path fill="none" stroke="#059669" stroke-width="2"
+          stroke-linejoin="round" stroke-linecap="round"
+          d="{{ chart.closed_path }}"/>
+    <path fill="none" stroke="#0f172a" stroke-width="2"
+          stroke-linejoin="round" stroke-linecap="round"
+          d="{{ chart.opened_path }}"/>
+
+    {% for d in chart.opened_dots %}
+    <circle cx="{{ d.x }}" cy="{{ d.y }}" r="2.5" fill="#0f172a">
+      <title>{{ d.day }}: {{ d.n }} opened</title>
+    </circle>
+    {% endfor %}
+    {% for d in chart.closed_dots %}
+    <circle cx="{{ d.x }}" cy="{{ d.y }}" r="2.5" fill="#059669">
+      <title>{{ d.day }}: {{ d.n }} closed</title>
+    </circle>
+    {% endfor %}
+  </svg>
+
+  <div class="mt-2 flex gap-4 text-xs text-slate-600">
+    <span class="inline-flex items-center gap-1.5">
+      <span class="inline-block w-3 h-0.5 bg-slate-900"></span> Opened
+    </span>
+    <span class="inline-flex items-center gap-1.5">
+      <span class="inline-block w-3 h-0.5 bg-emerald-600"></span> Closed
+    </span>
+  </div>
+  {% endif %}
+</div>

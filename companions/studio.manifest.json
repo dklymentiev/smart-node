@@ -1,0 +1,17 @@
+{
+  "name": "studio",
+  "title": "Studio",
+  "provides": "the web workspace: chats with agents, team, settings",
+  "core": true,
+  "requires": [
+    "core-api",
+    "dispatcher"
+  ],
+  "works_without": {
+    "documents": "no Files section",
+    "tracking": "no Tasks section",
+    "workflows": "no Workflows section"
+  },
+  "sidecars": "studio",
+  "icon": "briefcase"
+}

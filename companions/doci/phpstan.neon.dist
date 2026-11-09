@@ -1,0 +1,16 @@
+parameters:
+    level: 5
+    paths:
+        - src
+        - lib
+        - api
+    excludePaths:
+        # Bundled third-party library — keep upstream code untouched
+        # so our patches don't diverge silently.
+        - lib/vendor/*
+    # Preload bundled classes so first-party code that uses them
+    # (Parsedown / ParsedownExtended in lib/markdown.php) resolves
+    # without analysing the vendor body itself.
+    bootstrapFiles:
+        - lib/vendor/Parsedown.php
+        - lib/vendor/ParsedownExtended.php

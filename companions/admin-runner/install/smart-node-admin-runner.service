@@ -1,0 +1,15 @@
+[Unit]
+Description=Smart Node admin-runner (privileged operations service)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=sn-admin
+EnvironmentFile=/etc/smart-node/admin-runner.env
+WorkingDirectory=/opt/smart-node/admin-runner
+ExecStart=/opt/smart-node/admin-runner/venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8041
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+fastapi==0.115.0
+uvicorn==0.30.6
+pydantic==2.8.2
+psycopg2-binary==2.9.9
+PyYAML==6.0.2
+bcrypt==4.2.1
+httpx>=0.27.0,<1
+# The secrets MCP server is spawned from this companion's venv.
+mcp>=1.0.0,<2

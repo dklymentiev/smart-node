@@ -1,0 +1,152 @@
+/* Work Map view styles. Every selector is scoped under .workmapv so these rules
+   never escape into other Studio screens. CSS variables stay local to the view
+   for the same reason: they would clobber Studio tokens if hoisted to :root. */
+
+.workmapv{
+  /* surface, ink and rules are the kit's, so the page follows the theme; the hues are the data colours of
+     the map (lanes, agents, states), which the kit has no tokens for, in a deeper set on the light theme */
+  --bg:var(--sn-bg); --panel:var(--sn-surface); --line:var(--sn-rule); --text:var(--sn-ink);
+  --muted:var(--sn-ink-mute); --muted2:var(--sn-ink-faint);
+  --blue:#3f6fd1; --green:#23976a; --amber:#b27a10; --red:#cf4a4a; --purple:#7b57c9; --cyan:#1f8fa3; --pink:#c4478b;
+  --amber-ink:#8a5c05; --green-ink:#177354; --blue-ink:#2d58b0;
+  background:
+    radial-gradient(900px 500px at 78% -5%,var(--sn-glow-cool),transparent 55%),
+    radial-gradient(700px 500px at 10% 15%,var(--sn-glow-warm),transparent 50%),
+    var(--bg);
+  color:var(--text);
+  font:14px/1.45 var(--sn-font);
+  overflow-y:auto;
+}
+[data-theme="dark"] .workmapv{
+  --blue:#78a7ff; --green:#49d69a; --amber:#f2c96b; --red:#ff7676; --purple:#b993ff; --cyan:#66d6e7; --pink:#ff8fc7;
+  --amber-ink:#ffd57a; --green-ink:#9ff0c8; --blue-ink:#8fb2ff;
+}
+.workmapv *{box-sizing:border-box}
+.workmapv .top{height:56px;border-bottom:1px solid var(--sn-rule);display:flex;align-items:center;gap:14px;padding:0 18px;position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--sn-bg) 94%,transparent);backdrop-filter:blur(12px)}
+.workmapv .brand{font-weight:800;letter-spacing:-.02em}
+.workmapv .brand span{color:var(--muted);font-weight:500;margin-left:7px}
+.workmapv .mode{margin-left:20px;display:flex;gap:4px;padding:4px;border:1px solid var(--sn-rule);border-radius:10px;background:var(--sn-inset)}
+.workmapv .mode button,.workmapv .mode a{border:0;background:transparent;color:var(--sn-ink-mute);padding:7px 10px;border-radius:7px;cursor:pointer;font:inherit;text-decoration:none}
+.workmapv .mode button.active{background:var(--sn-surface);color:var(--sn-ink);box-shadow:var(--sn-shadow-s)}
+.workmapv .search{margin-left:auto;width:270px;border:1px solid var(--line);background:var(--sn-inset);color:var(--sn-ink-2);border-radius:9px;padding:8px 10px;font:inherit}
+.workmapv .wrap{max-width:1780px;margin:auto;padding:22px}
+.workmapv .hero{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px;gap:16px}
+.workmapv h1{font-size:28px;line-height:1.1;margin:0 0 6px;letter-spacing:-.03em}
+.workmapv .sub{color:var(--muted);font-size:13px}
+.workmapv .scope{display:flex;gap:8px}
+.workmapv .scope button{border:1px solid var(--line);background:var(--sn-surface);color:var(--sn-ink-mute);border-radius:9px;padding:8px 10px;cursor:pointer;font:inherit}
+.workmapv .scope button.active{background:var(--sn-send);color:var(--sn-on-send);border-color:var(--sn-send);font-weight:700}
+.workmapv .scope button:disabled{opacity:.35;cursor:not-allowed}
+.workmapv .nowbar{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:10px 14px;margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.workmapv .nowbar .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.11em;margin-right:6px;white-space:nowrap}
+.workmapv .chip{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--sn-inset);border-radius:10px;padding:6px 10px;cursor:pointer;max-width:420px}
+.workmapv .chip:hover{border-color:var(--sn-ink-faint)}
+.workmapv .chip .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.workmapv .chip .dot.live{animation:workmapv-pulse 1.6s ease-in-out infinite}
+@keyframes workmapv-pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,255,255,.35)}50%{box-shadow:0 0 0 5px rgba(255,255,255,0)}}
+.workmapv .chip .a{font-weight:700;font-size:12px}
+.workmapv .chip .t{font-size:11px;color:var(--sn-ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.workmapv .chip .ago{font-size:10px;color:var(--muted2);white-space:nowrap}
+.workmapv .livebadge{display:inline-block;margin-top:6px;font-size:10px;color:var(--green-ink);border:1px solid color-mix(in srgb,var(--green) 40%,transparent);border-radius:6px;padding:1px 6px}
+.workmapv .livebadge.old{color:var(--muted);border-color:var(--line)}
+.workmapv .signalbar{display:grid;grid-template-columns:minmax(0,1.7fr) repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.workmapv .signal{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 14px;min-height:72px}
+.workmapv .signal .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.11em}
+.workmapv .signal .v{margin-top:6px;font-size:18px;font-weight:750;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.workmapv .signal.drift .v{color:var(--amber-ink)}
+.workmapv .signal .mini{margin-top:3px;color:var(--muted);font-size:11px}
+.workmapv .board{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:12px}
+.workmapv .map{border:1px solid var(--line);background:var(--panel);border-radius:16px;overflow:hidden}
+.workmapv .maphead{height:44px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:250px 1fr;align-items:center}
+.workmapv .lefthead{padding:0 16px;font-weight:700;font-size:12px;letter-spacing:.04em}
+.workmapv .axis{position:relative;height:100%;border-left:1px solid var(--line)}
+.workmapv .axis span{position:absolute;top:14px;font-size:10px;color:var(--muted2);transform:translateX(-50%);white-space:nowrap}
+.workmapv .lane{display:grid;grid-template-columns:250px 1fr;min-height:150px;border-bottom:1px solid var(--sn-rule-2);cursor:pointer}
+.workmapv .lane:last-child{border-bottom:0}
+.workmapv .lane.sel{background:var(--sn-glow-cool)}
+.workmapv .lane.dim{opacity:.45}
+.workmapv .label{padding:16px;border-right:1px solid var(--line)}
+.workmapv .pname{font-size:14px;font-weight:750;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.workmapv .stack{display:flex;margin-top:14px;height:6px;border-radius:999px;overflow:hidden;background:var(--sn-inset)}
+.workmapv .stack i{display:block;height:100%}
+.workmapv .effrow{display:grid;grid-template-columns:70px 1fr 64px;gap:8px;align-items:center;font-size:11px;margin-bottom:8px}
+.workmapv .effrow .bar>i{border-radius:99px}
+.workmapv .pmeta{font-size:11px;color:var(--muted);margin-top:2px}
+.workmapv .share{margin-top:14px;height:5px;background:var(--sn-inset);border-radius:999px;position:relative;overflow:visible}
+.workmapv .share>div{height:100%;border-radius:999px}
+.workmapv .share>i{position:absolute;top:-4px;width:2px;height:13px;background:var(--sn-ink);border-radius:2px}
+.workmapv .shareline{display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--muted2)}
+.workmapv .shareline .hot{color:var(--amber-ink);font-weight:700}
+.workmapv .shareline .cold{color:var(--blue-ink);font-weight:700}
+.workmapv .flow{position:relative;min-height:150px}
+.workmapv .flow svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.workmapv .tag{position:absolute;background:var(--sn-surface);border:1px solid var(--sn-rule);border-radius:8px;padding:4px 7px;font-size:10px;color:var(--sn-ink-2);white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.22);max-width:260px;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.workmapv .tag b{color:var(--sn-ink)}
+.workmapv .tag.bad{border-color:rgba(255,118,118,.45)}
+.workmapv .side{display:flex;flex-direction:column;gap:12px}
+.workmapv .card{background:var(--panel);border:1px solid var(--line);border-radius:15px;overflow:hidden}
+.workmapv .cardhead{display:flex;justify-content:space-between;align-items:center;padding:12px 13px;border-bottom:1px solid var(--line);gap:8px}
+.workmapv .cardhead h3{font-size:12px;margin:0;letter-spacing:.04em}
+.workmapv .cardhead span{font-size:10px;color:var(--muted)}
+.workmapv .alert{margin:10px;border:1px solid color-mix(in srgb,var(--amber) 28%,transparent);background:color-mix(in srgb,var(--amber) 7%,transparent);border-radius:11px;padding:11px}
+.workmapv .alert.ok{border-color:color-mix(in srgb,var(--green) 28%,transparent);background:color-mix(in srgb,var(--green) 7%,transparent)}
+.workmapv .alert .t{font-weight:700;color:var(--amber-ink);font-size:12px}
+.workmapv .alert.ok .t{color:var(--green-ink)}
+.workmapv .alert .d{color:var(--sn-ink-mute);font-size:11px;margin-top:4px}
+.workmapv .compare{padding:12px}
+.workmapv .barrow{margin-bottom:12px}
+.workmapv .bartop{display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px;gap:8px}
+.workmapv .bars{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.workmapv .bar{height:7px;background:var(--sn-inset);border-radius:99px;overflow:hidden}
+.workmapv .bar>i{display:block;height:100%;background:var(--sn-work);border-radius:99px}
+.workmapv .planrow{display:flex;justify-content:space-between;align-items:center;font-size:11px;margin:6px 0}
+.workmapv .planrow input{width:56px;background:var(--sn-inset);border:1px solid var(--line);color:var(--sn-ink);border-radius:6px;padding:3px 6px;font:inherit;text-align:right}
+.workmapv .note{font-size:10px;color:var(--muted);margin-top:4px}
+.workmapv .smallbtn{border:1px solid var(--line);background:var(--sn-surface);color:var(--sn-ink-mute);border-radius:8px;padding:6px 8px;font-size:10px;cursor:pointer;font-family:inherit}
+.workmapv .smallbtn.active{color:var(--sn-ink);background:var(--sn-inset)}
+.workmapv .events{padding:4px 11px 11px;max-height:560px;overflow:auto}
+.workmapv .event{padding:9px 2px;border-bottom:1px solid var(--sn-rule-2)}
+.workmapv .event:last-child{border-bottom:0}
+.workmapv .etop{display:flex;justify-content:space-between;gap:8px}
+.workmapv .who{font-size:11px;font-weight:700}
+.workmapv .when{font-size:10px;color:var(--muted2);white-space:nowrap}
+.workmapv .edesc{font-size:11px;color:var(--sn-ink-2);margin-top:3px}
+.workmapv .edesc .p{color:var(--muted2)}
+.workmapv .legend{display:flex;gap:14px;flex-wrap:wrap;padding:12px 2px 0;color:var(--muted);font-size:10px}
+.workmapv .legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:0}
+.workmapv #tip{position:fixed;pointer-events:none;background:var(--sn-surface);border:1px solid var(--sn-rule);border-radius:8px;padding:8px 10px;font-size:11px;color:var(--sn-ink-2);max-width:340px;display:none;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.workmapv #tip b{color:var(--sn-ink)}
+.workmapv .method{margin-top:22px;color:var(--muted2);font-size:11px;max-width:120ch}
+.workmapv .method .notes{margin-top:6px;color:var(--muted2)}
+.workmapv .loading{padding:40px;text-align:center;color:var(--muted)}
+.workmapv .err{padding:16px;border:1px solid color-mix(in srgb,var(--red) 45%,transparent);background:color-mix(in srgb,var(--red) 8%,transparent);border-radius:11px;color:var(--sn-danger);font-size:12px;margin:16px 0}
+@media(max-width:1200px){.workmapv .board{grid-template-columns:minmax(0,1fr)}.workmapv .signalbar{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.workmapv .lane,.workmapv .maphead{grid-template-columns:1fr}.workmapv .label{border-right:0}.workmapv .axis{display:none}.workmapv .hero{flex-direction:column;align-items:flex-start}.workmapv .search{width:140px}.workmapv .signalbar{grid-template-columns:minmax(0,1fr)}}
+
+/* a phone: the top bar wraps, the chips and cards shrink to the screen instead of the width of their text */
+@media(max-width:720px){
+  /* one row that stays at the top: the three views and the search, without the name (the screen's title says it) */
+  .workmapv .top{height:56px;flex-wrap:nowrap;gap:8px;padding:0 12px}
+  .workmapv .brand{display:none}
+  .workmapv .mode{margin-left:0;flex:0 0 auto}
+  .workmapv .search{margin-left:0;width:auto;flex:1 1 90px;min-width:0}
+  .workmapv .map{scroll-margin-top:64px}
+  .workmapv .wrap{padding:14px 12px}
+  .workmapv .chip{max-width:100%;min-width:0}
+  .workmapv .chip .t{min-width:0}
+  .workmapv .signal{min-width:0}
+}
+
+/* Work Map loading state (js: wmSkeleton): its own layout, shimmering. Blocks are the app's .skel. */
+.workmapv .wsk__hero { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.workmapv .wsk__h1 { height: 28px; width: min(320px, 70%); }
+.workmapv .wsk__sub { height: 12px; width: min(520px, 90%); }
+.workmapv .wsk__now { height: 52px; border-radius: 13px; margin-bottom: 12px; }
+.workmapv .wsk__signals { display: grid; grid-template-columns: minmax(0,1.7fr) repeat(3,minmax(0,1fr)); gap: 10px; margin-bottom: 12px; }
+.workmapv .wsk__sig { height: 76px; border-radius: 13px; }
+.workmapv .wsk__board { display: grid; grid-template-columns: minmax(0,1fr) 360px; gap: 12px; }
+.workmapv .wsk__map { height: 470px; border-radius: 16px; }
+.workmapv .wsk__side { display: flex; flex-direction: column; gap: 12px; }
+.workmapv .wsk__card { height: 150px; border-radius: 15px; }
+@media(max-width:1200px){ .workmapv .wsk__board { grid-template-columns: minmax(0,1fr); } .workmapv .wsk__signals { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:720px){ .workmapv .wsk__signals { grid-template-columns: minmax(0,1fr); } .workmapv .wsk__map { height: 360px; } }
