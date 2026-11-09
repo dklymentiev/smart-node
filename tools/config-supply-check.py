@@ -103,6 +103,10 @@ BLOCKING: set = set()
 
 # Names configured from outside the tree. Each entry carries its reason.
 ALLOW = {
+    "OPENAI_BASE_URL":
+        "optional endpoint for Rein's OpenAI provider, set by an operator who points it at a "
+        "compatible server; empty is guarded (providers/openai.py passes base_url only when "
+        "set) and means the SDK's default endpoint",
     "SN_ANTHROPIC_FALLBACK_MODEL":
         "the node's switch for the Anthropic rate-limit fallback: set it to a model and a 429 "
         "from the account is retried through the fallback provider; empty is the supported "

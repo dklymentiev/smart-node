@@ -23,8 +23,16 @@ git clone https://github.com/dklymentiev/smart-node.git && cd smart-node
 
 tools/install-from-release.sh -- \
     --provider lxd-local --name node1 --ip <node-ip> \
-    --ssh-key ~/.ssh/id_ed25519.pub --setup-via-token --all
+    --ssh-key ~/.ssh/id_ed25519.pub \
+    --node-fqdn node1.localhost --node-domain node1.localhost --no-vpn \
+    --setup-via-token --all
 ```
+
+`--node-domain` gives Studio its address. Without it the install ends with an
+error after every check has passed. For a node you use from this machine,
+`node1.localhost` is enough and Studio is `http://studio.node1.localhost/`; see
+[A node on your own computer](install-from-source.md#a-node-on-your-own-computer)
+for the browser door, and [public-domain.md](public-domain.md) for a real domain.
 
 It reads the newest release, makes a clean clone at that tag, and hands the
 result to the installer. Everything

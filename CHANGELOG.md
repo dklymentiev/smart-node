@@ -13,6 +13,16 @@ and are not listed here.
 
 ## [Unreleased]
 
+## [1.14.1] - 2026-11-09
+
+Documentation only; nothing on a node changes.
+
+- The quick-start install command in the README and in
+  `docs/install-from-github.md` now passes `--node-fqdn`, `--node-domain` and
+  `--no-vpn`. Without a node domain Studio has no address, and a clean install
+  that followed the old command ended with an error after every check passed.
+- The README says where questions and ideas go: GitHub Discussions.
+
 ## [1.14.0] - 2026-11-08
 
 Upgrade notes: [docs/upgrade/1.14.0.md](docs/upgrade/1.14.0.md). A node installed as `office` is

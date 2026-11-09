@@ -54,8 +54,14 @@ tools/preflight.sh --provider lxd-local
 sudo orchestrator/install-on.sh \
   --provider lxd-local \
   --name <name> --ip <ip> --ssh-key <key.pub> \
+  --node-fqdn <name>.localhost --node-domain <name>.localhost --no-vpn \
   --all --setup-via-token
 ```
+
+`--node-domain` gives Studio its address; without it the install ends with an
+error after every check has passed. `<name>.localhost` is right for a node you
+use from this machine (Studio is then `http://studio.<name>.localhost/`); a node
+on a real domain is described in [docs/public-domain.md](docs/public-domain.md).
 
 The installer asks one question first: how your AI will work, with a Claude
 subscription or with an API key (Anthropic, OpenAI, Google, OpenRouter or your
@@ -171,6 +177,12 @@ not automated.
 The install is not offline. It fetches operating-system and build dependencies,
 so the controller and target need internet during setup. A model credential is
 required before an agent can answer usefully.
+
+## Questions and ideas
+
+Ask in [GitHub Discussions](https://github.com/dklymentiev/smart-node/discussions).
+Bugs go to [issues](https://github.com/dklymentiev/smart-node/issues); security reports
+follow [SECURITY.md](SECURITY.md).
 
 ## Licence
 
